@@ -58,7 +58,7 @@ jobs:
             ./deploy/ \
             root@${{matrix.server.server_ip}}:/home/vault/
 
-      - name: Deploy to ${{ matrix.server.s }} with docker compose
+      - name: Deploy to ${{ matrix.server.server_ip }} with docker compose
         env:
           SERVER_IP: ${{ matrix.server.server_ip }}
           RETRY_1: ${{ matrix.server.retry1 }}
@@ -67,9 +67,9 @@ jobs:
 
         run: |
           # Create deployment directory if not exists
-          ssh root@$SERVER_HOST "mkdir -p /home/vault/{config,data,logs}"
+          ssh root@$SERVER_IP "mkdir -p /home/vault/{config,data,logs}"
           
-          ssh root@$SERVER_HOST "
+          ssh root@$SERVER_IP "
             cat > /home/vault/config/vault.hcl <<EOF
 
             storage "raft" {
@@ -96,7 +96,7 @@ jobs:
             disable_mlock = true
             EOF
           "
-          ssh root@$SERVER_HOST "
+          ssh root@$SERVER_IP "
             echo "🚀 Starting Vault"
             cd /home/vault
             docker compose down || true
@@ -107,7 +107,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh root@$SERVER_HOST"
+          ssh root@$SERVER_IP"
             cd /home/vault
             echo '=== Container Status ==='
             docker compose ps
