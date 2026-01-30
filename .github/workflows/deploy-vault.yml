@@ -11,7 +11,6 @@ jobs:
       SERVER1_IP: ${{ secrets.SERVER1_IP}}
       SERVER2_IP: ${{ secrets.SERVER2_IP}}
       SERVER3_IP: ${{ secrets.SERVER3_IP}}
-      SSH_USER: ${{ secrets.SSH_USER}}
 
     strategy:
       matrix:
@@ -58,7 +57,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ matrix.server_ip }}
-          username: $SSH_USER
+          username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
