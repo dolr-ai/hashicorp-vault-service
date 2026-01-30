@@ -98,9 +98,6 @@ jobs:
 
             echo "✅ Vault container started on ${{ matrix.server.node_id }}"
           "
-
-      - name: Verify deployment
-        run: |
           ssh root@${{ matrix.server.server_ip }}"
             cd /home/vault
             echo '=== Container Status ==='
@@ -109,5 +106,4 @@ jobs:
             echo '=== Container Logs (last 20 lines) ==='
             docker compose logs --tail=20 vault 2>/dev/null || echo 'Logs not yet available'
           "
-
     
