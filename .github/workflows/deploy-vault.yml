@@ -59,17 +59,11 @@ jobs:
             root@${{matrix.server.server_ip}}:/home/vault/
 
       - name: Deploy to ${{ matrix.server.server_ip }} with docker compose
-        env:
-          SERVER_IP: ${{ matrix.server.server_ip }}
-          RETRY_1: ${{ matrix.server.retry1 }}
-          RETRY_2: ${{ matrix.server.retry2 }}
-          NODE_ID: ${{ matrix.server.node_id }}
-
         run: |
           # Create deployment directory if not exists
-          ssh root@$SERVER_IP "mkdir -p /home/vault/{config,data,logs}"
+          ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
           
-          ssh root@$SERVER_IP "
+          ssh root@${{ matrix.server.server_ip }} "
             cat > /home/vault/config/vault.hcl <<EOF
 
             storage "raft" {
@@ -77,11 +71,11 @@ jobs:
               node_id = "$NODE_ID"
 
               retry_join {
-                leader_api_addr = "http://$RETRY_1:8200"
+                leader_api_addr = "http://${{ matrix.server.retry1 }}:8200"
               }
 
               retry_join {
-                leader_api_addr = "http://$RETRY_2:8200"
+                leader_api_addr = "http://${{ matrix.server.retry2 }}:8200"
               }
             }
 
@@ -91,12 +85,12 @@ jobs:
               tls_disable     = 1
             }
 
-            api_addr     = "http://$SERVER_IP:8200"
-            cluster_addr = "http://$SERVER_IP:8201"
+            api_addr     = "http://${{ matrix.server.server_ip }}:8200"
+            cluster_addr = "http://${{ matrix.server.server_ip }}:8201"
             disable_mlock = true
             EOF
           "
-          ssh root@$SERVER_IP "
+          ssh root@${{ matrix.server.server_ip }} "
             echo "🚀 Starting Vault"
             cd /home/vault
             docker compose down || true
@@ -107,7 +101,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          ssh root@$SERVER_IP"
+          ssh root@${{ matrix.server.server_ip }}"
             cd /home/vault
             echo '=== Container Status ==='
             docker compose ps
