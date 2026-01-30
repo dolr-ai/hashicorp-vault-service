@@ -2,6 +2,9 @@ name: Deploy Vault Cluster
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - naitik/initial_setup
 
 jobs:
   deploy:
@@ -14,21 +17,23 @@ jobs:
 
     strategy:
       matrix:
-        include:
-          - node_id: vault-1
-            server_ip: $SERVER1_IP
-            retry1: $SERVER2_IP
-            retry2: $SERVER3_IP
+        server:
+            - node_id: vault-1
+              server_ip: $SERVER1_IP
+              retry1: $SERVER2_IP
+              retry2: $SERVER3_IP
 
-          - node_id: vault-2
-            server_ip: $SERVER2_IP
-            retry1: $SERVER1_IP
-            retry2: $SERVER3_IP
+            - node_id: vault-2
+              server_ip: $SERVER2_IP
+              retry1: $SERVER1_IP
+              retry2: $SERVER3_IP
 
-          - node_id: vault-3
-            server_ip: $SERVER3_IP
-            retry1: $SERVER1_IP
-            retry2: $SERVER2_IP
+            - node_id: vault-3
+              server_ip: $SERVER3_IP
+              retry1: $SERVER1_IP
+              retry2: $SERVER2_IP
+
+      max-parallel: 1
 
     steps:
       - name: Checkout repository
@@ -41,7 +46,7 @@ jobs:
 
       - name: Add server to known hosts
         run: |
-          ssh-keyscan -H ${{matrix.server_ip}} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{matrix.server.server_ip}} >> ~/.ssh/known_hosts
 
       - name: Check server connectivity
         run: |
@@ -51,14 +56,14 @@ jobs:
         run: |
           rsync -avz --delete \
             ./deploy/ \
-            root@${{matrix.server.host}}:/home/vault/
+            root@${{matrix.server.server_ip}}:/home/vault/
 
       - name: Deploy Vault via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ matrix.server_ip }}
+          host: ${{ matrix.server.server_ip }}
           username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
           script: |
             set -e
 
@@ -69,15 +74,15 @@ jobs:
             cat > /home/vault/config/vault.hcl <<EOF
 
             storage "raft" {
-              path    = "/vault/data"
-              node_id = "${{ matrix.node_id }}"
+              path    = "/home/vault/data"
+              node_id = "${{ matrix.server.node_id }}"
 
               retry_join {
-                leader_api_addr = "http://${{ matrix.retry1 }}:8200"
+                leader_api_addr = "http://${{ matrix.server.retry1 }}:8200"
               }
 
               retry_join {
-                leader_api_addr = "http://${{ matrix.retry2 }}:8200"
+                leader_api_addr = "http://${{ matrix.server.retry2 }}:8200"
               }
             }
 
@@ -87,8 +92,8 @@ jobs:
               tls_disable     = 1
             }
 
-            api_addr     = "http://${{ matrix.server_ip }}:8200"
-            cluster_addr = "http://${{ matrix.server_ip }}:8201"
+            api_addr     = "http://${{ matrix.server.server_ip }}:8200"
+            cluster_addr = "http://${{ matrix.server.server_ip }}:8201"
             disable_mlock = true
             EOF
 
@@ -97,4 +102,4 @@ jobs:
             docker compose down || true
             docker compose up -d
 
-            echo "✅ Vault container started on ${{ matrix.node_id }}"
+            echo "✅ Vault container started on ${{ matrix.server.node_id }}"
