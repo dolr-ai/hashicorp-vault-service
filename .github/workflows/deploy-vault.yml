@@ -66,27 +66,28 @@ jobs:
           ssh root@${{ matrix.server.server_ip }} "
             cat > /home/vault/config/vault.hcl <<EOF
 
-            storage "raft" {
-              path    = "/home/vault/data"
-              node_id = "$NODE_ID"
+            storage \"raft\" {
+              path    = \"/home/vault/data\"
+              node_id = \"${{ matrix.server.node_id }}\"
+
 
               retry_join {
-                leader_api_addr = "http://${{ matrix.server.retry1 }}:8200"
+                leader_api_addr = \"http://${{ matrix.server.retry1 }}:8200\"
               }
 
               retry_join {
-                leader_api_addr = "http://${{ matrix.server.retry2 }}:8200"
+                leader_api_addr = \"http://${{ matrix.server.retry2 }}:8200\"
               }
             }
 
-            listener "tcp" {
-              address         = "0.0.0.0:8200"
-              cluster_address = "0.0.0.0:8201"
+            listener \"tcp\" {
+              address         = \"0.0.0.0:8200\"
+              cluster_address = \"0.0.0.0:8201"
               tls_disable     = 1
             }
 
-            api_addr     = "http://${{ matrix.server.server_ip }}:8200"
-            cluster_addr = "http://${{ matrix.server.server_ip }}:8201"
+            api_addr     = \"http://${{ matrix.server.server_ip }}:8200\"
+            cluster_addr = \"http://${{ matrix.server.server_ip }}:8201\"
             disable_mlock = true
             EOF
           "
