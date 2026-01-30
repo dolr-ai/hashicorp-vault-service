@@ -98,7 +98,7 @@ jobs:
 
             echo "✅ Vault container started on ${{ matrix.server.node_id }}"
           "
-          ssh root@${{ matrix.server.server_ip }}"
+          ssh root@${{ matrix.server.server_ip }} "
             cd /home/vault
             echo '=== Container Status ==='
             docker compose ps
