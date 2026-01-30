@@ -1,0 +1,101 @@
+name: Deploy Vault Cluster
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Vault Node
+    runs-on: ubuntu-latest
+    env:
+      SERVER1_IP: ${{ secrets.SERVER1_IP}}
+      SERVER2_IP: ${{ secrets.SERVER2_IP}}
+      SERVER3_IP: ${{ secrets.SERVER3_IP}}
+      SSH_USER: ${{ secrets.SSH_USER}}
+
+    strategy:
+      matrix:
+        include:
+          - node_id: vault-1
+            server_ip: $SERVER1_IP
+            retry1: $SERVER2_IP
+            retry2: $SERVER3_IP
+
+          - node_id: vault-2
+            server_ip: $SERVER2_IP
+            retry1: $SERVER1_IP
+            retry2: $SERVER3_IP
+
+          - node_id: vault-3
+            server_ip: $SERVER3_IP
+            retry1: $SERVER1_IP
+            retry2: $SERVER2_IP
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{matrix.server_ip}} >> ~/.ssh/known_hosts
+
+      - name: Check server connectivity
+        run: |
+          ssh -o ConnectTimeout=10 root@${{matrix.server.server_ip}} "echo 'Server connection successful'"
+
+      - name: Sync deployment files to server
+        run: |
+          rsync -avz --delete \
+            ./deploy/ \
+            root@${{matrix.server.host}}:/home/vault/
+
+      - name: Deploy Vault via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ matrix.server_ip }}
+          username: $SSH_USER
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+
+            echo "Creating directories"
+            mkdir -p /home/vault/{config,data,logs}
+
+            echo "Writing Vault config"
+            cat > /home/vault/config/vault.hcl <<EOF
+
+            storage "raft" {
+              path    = "/vault/data"
+              node_id = "${{ matrix.node_id }}"
+
+              retry_join {
+                leader_api_addr = "http://${{ matrix.retry1 }}:8200"
+              }
+
+              retry_join {
+                leader_api_addr = "http://${{ matrix.retry2 }}:8200"
+              }
+            }
+
+            listener "tcp" {
+              address         = "0.0.0.0:8200"
+              cluster_address = "0.0.0.0:8201"
+              tls_disable     = 1
+            }
+
+            api_addr     = "http://${{ matrix.server_ip }}:8200"
+            cluster_addr = "http://${{ matrix.server_ip }}:8201"
+            disable_mlock = true
+            EOF
+
+            echo "🚀 Starting Vault"
+            cd /home/vault
+            docker compose down || true
+            docker compose up -d
+
+            echo "✅ Vault container started on ${{ matrix.node_id }}"
