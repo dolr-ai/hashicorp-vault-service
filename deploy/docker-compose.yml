@@ -10,9 +10,9 @@ services:
       - "8200:8200"
       - "8201:8201"
     volumes:
-      - ./deploy/config:/home/vault/config
-      - ./data:/home/vault/data
-      - ./logs:/home/vault/logs
+      - /home/vault/config:/home/vault/config
+      - /home/vault/data:/home/vault/data
+      - /home/vault/logs:/home/vault/logs
       - /home/tls:/home/tls:ro
     environment:
       VAULT_ADDR: "https://${SERVER_IP}:8200"
