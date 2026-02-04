@@ -64,6 +64,9 @@ jobs:
           ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
           
           ssh root@${{ matrix.server.server_ip }} "chown -R 100:100 /home/vault/{config,data,logs}"
+          ssh root@${{ matrix.server.server_ip }} "chown -R 100:100 /home/tls"
+          ssh root@${{ matrix.server.server_ip }} "chmod 600 /home/tls/*key.pem"
+          ssh root@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*cert.pem"
           
           ssh root@${{ matrix.server.server_ip }} "
             cat > /home/vault/config/vault.hcl <<EOF
@@ -74,22 +77,27 @@ jobs:
 
 
               retry_join {
-                leader_api_addr = \"http://${{ matrix.server.retry1 }}:8200\"
+                leader_api_addr = \"https://${{ matrix.server.retry1 }}:8200\"
+                leader_ca_cert_file = \"/home/tls/ca-cert.pem\"
               }
 
               retry_join {
-                leader_api_addr = \"http://${{ matrix.server.retry2 }}:8200\"
+                leader_api_addr = \"https://${{ matrix.server.retry2 }}:8200\"
+                leader_ca_cert_file = \"/home/tls/ca-cert.pem\"
               }
             }
 
             listener \"tcp\" {
               address         = \"0.0.0.0:8200\"
               cluster_address = \"0.0.0.0:8201\"
-              tls_disable     = 1
+              tls_disable = 0
+              tls_cert_file      = \"/home/tls/${{ matrix.server.node_id }}-cert.pem\"
+              tls_key_file       = \"/home/tls/${{ matrix.server.node_id }}-key.pem\"
+              tls_client_ca_file = \"/home/tls/ca-cert.pem\"
             }
 
-            api_addr     = \"http://${{ matrix.server.server_ip }}:8200\"
-            cluster_addr = \"http://${{ matrix.server.server_ip }}:8201\"
+            api_addr     = \"https://${{ matrix.server.server_ip }}:8200\"
+            cluster_addr = \"https://${{ matrix.server.server_ip }}:8201\"
             disable_mlock = true
           "
           ssh root@${{ matrix.server.server_ip }} "
