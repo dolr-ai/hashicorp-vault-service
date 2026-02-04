@@ -109,7 +109,7 @@ jobs:
             echo "🚀 Starting Vault"
             cd /home/vault
             docker compose down || true
-            docker compose up -d
+            SERVER_IP=${{ matrix.server.server_ip }} docker compose up -d
 
             echo "✅ Vault container started on ${{ matrix.server.node_id }}"
           "
