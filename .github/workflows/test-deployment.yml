@@ -3,7 +3,7 @@ name: Deploy Test Application
 on:
   push:
     branches:
-      - naitik/initial-setup
+      - naitik/initial_setup
 
 # Required: Add permissions for OIDC token
 permissions:
