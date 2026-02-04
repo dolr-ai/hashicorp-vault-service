@@ -26,7 +26,7 @@ jobs:
           # Optional: customize the audience
           jwtGithubAudience: "https://github.com/dolr-ai"
           # If using self-signed certs
-          tlsSkipVerify: true
+          tlsSkipVerify: false
           caCertificate: ${{ secrets.VAULT_CA_CERT }}
           secrets: |
             secret/data/test-app/config test_pass | DB_PASSWORD ;
