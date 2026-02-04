@@ -59,6 +59,8 @@ jobs:
             root@${{matrix.server.server_ip}}:/home/vault/
 
       - name: Deploy to ${{ matrix.server.server_ip }} with docker compose
+        env:
+          SERVER_IP: ${{ matrix.server.server_ip }}
         run: |
           # Create deployment directory if not exists
           ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
