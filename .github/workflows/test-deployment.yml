@@ -1,0 +1,38 @@
+name: Deploy Application
+on:
+  push:
+    branches:
+      - initial-setup
+
+# Required: Add permissions for OIDC token
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Import Secrets from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://${{ secrets.SERVER1_IP }}:8200
+          method: jwt
+          role: github-actions-role
+          # Optional: customize the audience
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          # If using self-signed certs
+          tlsSkipVerify: false
+          caCertificate: ${{ secrets.VAULT_CA_CERT }}
+          secrets: |
+            secret/data/test-app/config test_pass | DB_PASSWORD ;
+            secret/data/test-app/config test_user | DB_USERNAME ;
+      
+      - name: Use secrets in deployment
+        run: |
+          echo "Secrets retrieved successfully"
+          # Don't print actual secrets!
+          echo "DB_USERNAME is set: ${DB_USERNAME:+yes}"
