@@ -36,5 +36,5 @@ jobs:
         run: |
           echo "Secrets retrieved successfully"
           # printing the value since it is just for demonstration and testing, avoid printing secrets in real workflows.
-          echo "DB_USERNAME: $(echo $DB_USERNAME | sed 's/./& /g')"
+          echo "DB_USERNAME: $(echo $DB_USERNAME | sed 's/./& /g')
           echo "DB_PASSWORD: $(echo $DB_PASSWORD | sed 's/./& /g')
