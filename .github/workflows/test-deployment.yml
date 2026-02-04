@@ -35,5 +35,6 @@ jobs:
       - name: Use secrets in deployment
         run: |
           echo "Secrets retrieved successfully"
-          # Don't print actual secrets!
-          echo "DB_USERNAME is set: ${DB_USERNAME:+yes}"
+          # printing the value since it is just for demonstration and testing, avoid printing secrets in real workflows.
+          echo "DB_PASSWORD is set: ${DB_PASSWORD}"
+          echo "DB_USERNAME is set: ${DB_USERNAME}"
