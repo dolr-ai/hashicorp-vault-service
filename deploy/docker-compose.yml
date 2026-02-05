@@ -6,9 +6,9 @@ services:
     restart: unless-stopped
     cap_add:
       - IPC_LOCK
-    expose:
-      - "8200"
-      - "8201"
+    ports:
+      - "8200:8200"
+      - "8201:8201"
     volumes:
       - ./config:/home/vault/config
       - ./data:/home/vault/data
