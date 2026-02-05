@@ -11,7 +11,7 @@ vault.yral.com {
         health_uri /v1/sys/health?standbyok=true
         health_interval 30s
         health_timeout 10s
-        health_status 200 429
+        health_status 200
 
         transport http {
             tls_trusted_ca_certs /etc/caddy/ca-cert.pem
