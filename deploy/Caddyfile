@@ -14,7 +14,8 @@ vault.yral.com {
         health_status 200
 
         transport http {
-            tls_trust_pool pem_file /etc/caddy/ca-cert.pem
+            tls
+            tls_trust_pool file /etc/caddy/ca-cert.pem
             tls_client_auth {
                 cert /etc/caddy/client-cert.pem
                 key /etc/caddy/client-key.pem
