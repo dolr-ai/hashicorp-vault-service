@@ -16,10 +16,7 @@ vault.yral.com {
         transport http {
             tls
             tls_trust_pool file /etc/caddy/ca-cert.pem
-            tls_client_auth {
-                cert /etc/caddy/client-cert.pem
-                key /etc/caddy/client-key.pem
-            }
+            tls_client_auth /etc/caddy/client-cert.pem /etc/caddy/client-key.pem
             read_timeout 45s
             write_timeout 45s
             dial_timeout 10s
