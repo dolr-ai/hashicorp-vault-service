@@ -68,9 +68,8 @@ jobs:
           
           ssh root@${{ matrix.server.server_ip }} "chown -R 100:100 /home/vault/{config,data,logs}"
           ssh root@${{ matrix.server.server_ip }} "chown -R root:root /home/tls"
-          ssh root@${{ matrix.server.server_ip }} "chmod 600 /home/tls/*key.pem"
+          ssh root@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*key.pem"
           ssh root@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*cert.pem"
-          ssh root@${{ matrix.server.server_ip }} "chmod 644 /home/tls/client-key.pem"
 
           # Copy docker-compose.yml to base directory
           ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/docker-compose.yml /home/vault/docker-compose.yml"
