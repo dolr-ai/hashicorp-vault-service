@@ -40,29 +40,34 @@ docker exec -it vault vault policy write github-actions /tmp/github-actions-poli
 
 # Vault-cluster setup : 
 (NOTE: no need to run it cluster is already up and running)
+
 1. Run **deploy-vault.yml** from workflow, it will create 3 node vault cluster and start vault containers.
-2. Initialise vault on of the node. this step will create 5 unseal keys and a root token, store it safely.
+
+2. Generate custom TLS certs for the cluster nodes and upload them.
+
+3. Initialise vault on of the node. this step will create 5 unseal keys and a root token, store it safely.
 ```bash
 docker exec -it vault vault operator init
 ```
-3. Unseal the all vaults one after one, need to provide 3 unseal keys to each node, provide each key one after one.
+
+4. Unseal the all vaults one after one, need to provide 3 unseal keys to each node, provide each key one after one.
 ```bash
 docker exec -it vault vault operator unseal <UNSEAL_KEY>
 ```
 
-4. Upon successful unseal there will be one leader and two followers. Can check with this command, but before that we need to login to the vault as well with root token.
+5. Upon successful unseal there will be one leader and two followers. Can check with this command, but before that we need to login to the vault as well with root token.
 ```bash
 docker exec -it vault vault login <ROOT_TOKEN>
 docker exec -it vault vault operator raft list-peers
 ```
 
-5. enable secret engine and verify initialisation.
+6. enable secret engine and verify initialisation.
 ```bash
 docker exec -it vault vault secrets enable -path=secret kv-v2
 docker exec -it vault vault secrets list
 ```
 
-6. enable jwt auth for github
+7. enable jwt auth for github
 ```bash
 docker exec -it vault vault auth enable jwt
 docker exec -it vault vault write auth/jwt/config \
@@ -70,7 +75,7 @@ docker exec -it vault vault write auth/jwt/config \
   bound_issuer="https://token.actions.githubusercontent.com"
 ```
 
-7. create approle for github action
+8. create approle for github action
 ```bash
 cat <<EOF > github-role.json
 {
@@ -90,4 +95,4 @@ docker cp github-role.json vault:/tmp/github-role.json
 docker exec -it vault vault write auth/jwt/role/github-actions-role @/tmp/github-role.json
 ```
 
-8. policy and secret can be set as explained in above section.
+9. policy and secret can be set as explained in above section.
