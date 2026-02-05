@@ -3,6 +3,9 @@ name: Deploy Vault Cluster
 # vault cluster is already deployed, do not run it untill specified
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - naitik/initial_setup
 
 jobs:
   deploy:
@@ -116,7 +119,9 @@ jobs:
             echo '=== Container Status ==='
             docker compose ps
             echo ''
-            echo '=== Container Logs (last 20 lines) ==='
+            echo '=== Vault Logs (last 20 lines) ==='
             docker compose logs --tail=20 vault 2>/dev/null || echo 'Logs not yet available'
+            echo '=== Caddy Logs (last 20 lines) ==='
+            docker compose logs --tail=20 caddy 2>/dev/null || echo 'Logs not yet available'
           "
     

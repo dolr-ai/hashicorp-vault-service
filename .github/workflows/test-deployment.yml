@@ -1,9 +1,7 @@
 name: Deploy Test Application
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 # Required: Add permissions for OIDC token
 permissions:
