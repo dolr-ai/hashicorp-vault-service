@@ -30,6 +30,8 @@ services:
       volumes:
         - ./Caddyfile:/etc/caddy/Caddyfile:ro
         - /home/tls/ca-cert.pem:/etc/caddy/ca-cert.pem:ro
+        - /home/tls/client-cert.pem:/etc/caddy/client-cert.pem:ro
+        - /home/tls/client-key.pem:/etc/caddy/client-key.pem:ro
         - caddy_data:/data
         - caddy_config:/config
       networks:
