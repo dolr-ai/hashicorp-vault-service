@@ -2,6 +2,9 @@ name: Deploy Test Application
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - naitik/initial_setup
 
 # Required: Add permissions for OIDC token
 permissions:
@@ -18,7 +21,7 @@ jobs:
       - name: Import Secrets from Vault
         uses: hashicorp/vault-action@v3
         with:
-          url: https://${{ secrets.SERVER1_IP }}:8200
+          url: https://vault.yral.com
           method: jwt
           role: github-actions-role
           # Optional: customize the audience
