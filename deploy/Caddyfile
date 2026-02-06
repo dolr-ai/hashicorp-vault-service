@@ -5,6 +5,9 @@
 
 # Main vault domain
 vault.yral.com {
+
+    tls /etc/caddy/client-cert.pem /etc/caddy/client-key.pem
+
     # Reverse proxy to the yral-metadata service
     reverse_proxy vault:8200 {
         # Health checking
