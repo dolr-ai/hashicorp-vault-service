@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - naitik/initial_setup
+      - main
 
 # Required: Add permissions for OIDC token
 permissions:
