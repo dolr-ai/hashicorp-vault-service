@@ -27,23 +27,19 @@ permissions:
   contents: read
 ```
 
-2. Add **VAULT_CA_CERT** secret to repo secrets:
-- VAULT_CA_CERT required to connect with vault via tls secured connection. 
-
 3. Fetch passwords in your github-action:
-- 
+- ***role** will be set for repository, so that repo can be access only secrets which are related to repo.
+
 ```yml
 - name: Import Secrets from Vault
-    uses: hashicorp/vault-action@v3
-    with:
-        url: https://vault.example.com
-        method: jwt
-        role: github-actions-role
-        jwtGithubAudience: "https://github.com/dolr-ai"
-        # keep it false to verify CA certificate
-        tlsSkipVerify: false
-        caCertificate: "${{ secrets.VAULT_CA_CERT }}"
-        secrets: |
-        secret/data/test-app/config test_pass | DB_PASSWORD ;
-        secret/data/test-app/config test_user | DB_USERNAME ;
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.yral.com
+          method: jwt
+          role: <REPO_NAME>-role
+          # Optional: customize the audience
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          secrets: |
+            secret/data/<REPO_NAME>/config test_pass | DB_PASSWORD ;
+            secret/data/<REPO_NAME>/config test_user | DB_USERNAME ;
 ```

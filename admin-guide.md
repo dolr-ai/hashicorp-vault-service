@@ -18,11 +18,11 @@ docker exec -it vault vault kv put secret/test-app/config \
 
 ### Set Policy
 - admin can set policy for read write to particular path to particular approle.
-```bash
-# github-actions-policy.hcl
+```hcl
+# hot-or-not-web-leptos-ssr-policy.hcl
 
-path "secret/data/*" {
-  capabilities = ["read"]
+path "secret/data/hot-or-not-web-leptos-ssr/*" {
+  capabilities = ["read", "list"]
 }
 ```
 
@@ -30,10 +30,39 @@ NOTE : copy policy file into the container before writting policy on vault.
 
 example:
 ```bash
-docker cp /home/vault/policies/github-actions-policy.hcl vault:/tmp github-actions-policy.hcl
+docker cp /home/vault/policies/hot-or-not-web-leptos-ssr-policy.hcl vault:/tmp/hot-or-not-web-leptos-ssr-policy.hcl
 
-docker exec -it vault vault policy write github-actions /tmp/github-actions-policy.hcl
+docker exec -it vault vault policy write hot-or-not-web-leptos-ssr /tmp/hot-or-not-web-leptos-ssr-policy.hcl
 ```
+
+### Set Role
+- admin need to create a role for each repo with dedicated policy for that repo.
+
+- first create role json in roles directory
+example:
+```json
+{
+   "role_type": "jwt",
+   "bound_audiences": "https://github.com/dolr-ai",
+   "bound_claims_type": "glob",
+   "bound_claims": {
+     "repository": "dolr-ai/hot-or-not-web-leptos-ssr"
+   },
+   "user_claim": "actor",
+   "policies": "hot-or-not-web-leptos-ssr",
+   "ttl": "1h"
+}
+
+```
+- copy to container and write role to vault.
+example:
+```bash
+docker cp hot-or-not-web-leptos-ssr-role.json vault:/tmp/hot-or-not-web-leptos-ssr-role.json
+
+docker exec -it vault vault write auth/jwt/role/hot-or-not-web-leptos-ssr-role @/tmp/hot-or-not-web-leptos-ssr-role.json
+```
+
+- developers can fetch secrets in their CI using this role which is dedicated for specific repo and can only fetch secret related to repo.
 
 
 
@@ -75,24 +104,4 @@ docker exec -it vault vault write auth/jwt/config \
   bound_issuer="https://token.actions.githubusercontent.com"
 ```
 
-8. create approle for github action
-```bash
-cat <<EOF > github-role.json
-{
-  "role_type": "jwt",
-  "bound_audiences": "https://github.com/dolr-ai",
-  "bound_claims_type": "glob",
-  "bound_claims": {
-    "sub": "repo:dolr-ai/*:*"
-  },
-  "user_claim": "actor",
-  "policies": "github-actions",
-  "ttl": "1h"
-}
-EOF
-
-docker cp github-role.json vault:/tmp/github-role.json
-docker exec -it vault vault write auth/jwt/role/github-actions-role @/tmp/github-role.json
-```
-
-9. policy and secret can be set as explained in above section.
+8. create set policy and approle as directed above.
