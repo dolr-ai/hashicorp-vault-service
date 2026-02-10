@@ -2,15 +2,15 @@
 
 This project uses **HashiCorp Vault** for centralized secret management and **GitHub Actions OIDC (JWT)** for secure, short-lived authentication from CI pipelines.
 
-✅ Admins manually store secrets in Vault  
-✅ Developers can *use* secrets in GitHub Actions  
+✅ Admins can manually store or create role and yml file to load secrets in Vault  
+✅ Developers can **fetch** secrets in GitHub Actions  
 ❌ NO one can see raw secret values  
 
-## Architecture Overview
+## Process Overview
 
 1. **Admin** writes secrets into Vault..
 2. KV secret engine (kv-v2) has been enable to store secret securely
-3. Vault has a **policy** that allows read-only access to specific paths (currently github-action policy has been set which enables github-actions fetch secrets from whole secret database, no other policy has been set so no one can read directly from vault).
+3. Vault has a **policies** that allows read-only access to specific paths.
 4. GitHub Actions authenticates to Vault using **OIDC JWT** (no static tokens).
 5. Vault validates the GitHub identity and returns a **temporary token**.
 6. Workflow fetches secrets securely at runtime.
