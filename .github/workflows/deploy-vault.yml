@@ -3,6 +3,9 @@ name: Deploy Vault Cluster
 # vault cluster is already deployed, do not run it untill specified
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - naitik/initial_setup
 
 jobs:
   deploy:
@@ -100,6 +103,8 @@ jobs:
               tls_key_file       = \"/home/tls/${{ matrix.server.node_id }}-key.pem\"
               tls_client_ca_file = \"/home/tls/ca-cert.pem\"
             }
+
+            ui = true
 
             api_addr     = \"https://${{ matrix.server.server_ip }}:8200\"
             cluster_addr = \"https://${{ matrix.server.server_ip }}:8201\"
