@@ -1,4 +1,4 @@
-name: Create Vault OIDC Admin Role
+name: Vault OIDC Admin Role Provider
 
 on:
   workflow_dispatch:
@@ -12,11 +12,11 @@ on:
             - revoke
           default: grant
         admin_email:
-          description: 'Email address of the admin to authorize'
+          description: 'Email address of the admin'
           required: true
           type: string
         role_name:
-          description: 'Name for this role (e.g., admin-john-doe)'
+          description: 'Name of the role (e.g., admin-john-doe)'
           required: true
           type: string
 
