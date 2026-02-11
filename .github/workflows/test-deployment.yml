@@ -1,0 +1,38 @@
+name: Deploy Test Application
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+# Required: Add permissions for OIDC token
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Import Secrets from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.yral.com
+          method: jwt
+          role: github-actions-role
+          # Optional: customize the audience
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          secrets: |
+            secret/data/test-app/config test_pass | DB_PASSWORD ;
+            secret/data/test-app/config test_user | DB_USERNAME ;
+      
+      - name: Use secrets in deployment
+        run: |
+          echo "Secrets retrieved successfully"
+          # printing the value since it is just for demonstration and testing, avoid printing secrets in real workflows.
+          echo DB_USERNAME: $(echo $DB_USERNAME | sed 's/./& /g')
+          echo DB_PASSWORD: $(echo $DB_PASSWORD | sed 's/./& /g')

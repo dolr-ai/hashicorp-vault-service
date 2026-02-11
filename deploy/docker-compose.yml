@@ -1,0 +1,49 @@
+version: "3.8"
+services:
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+      - "8201:8201"
+    volumes:
+      - ./config:/home/vault/config
+      - ./data:/home/vault/data
+      - ./logs:/home/vault/logs
+      - /home/tls:/home/tls:ro
+    environment:
+      VAULT_ADDR: "https://127.0.0.1:8200"
+      VAULT_CACERT: "/home/tls/ca-cert.pem"
+      VAULT_TLS_SERVER_NAME: ${SERVER_IP}
+    command: vault server -config=/home/vault/config/vault.hcl
+    networks:
+      - vault-net
+  
+  caddy:
+      image: caddy:2-alpine
+      restart: unless-stopped
+      ports:
+        - "80:80"
+        - "443:443"
+      volumes:
+        - ./Caddyfile:/etc/caddy/Caddyfile:ro
+        - /home/tls/ca-cert.pem:/etc/caddy/ca-cert.pem:ro
+        - /home/tls/client-cert.pem:/etc/caddy/client-cert.pem:ro
+        - /home/tls/client-key.pem:/etc/caddy/client-key.pem:ro
+        - caddy_data:/data
+        - caddy_config:/config
+      networks:
+        - vault-net
+      depends_on:
+        - vault
+        
+networks:
+  vault-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

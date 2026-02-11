@@ -1,0 +1,61 @@
+name: Create Vault OIDC Admin Role
+
+on:
+  workflow_dispatch:
+    inputs:
+        admin_email:
+          description: 'Email address of the admin to authorize'
+          required: true
+          type: string
+        role_name:
+          description: 'Name for this role (e.g., admin-john-doe)'
+          required: true
+          type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  create-admin-role:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Authenticate to Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.yral.com
+          method: jwt
+          role: github-actions-write-role
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          exportToken: true
+      
+      - name: Install Vault CLI
+        run: |
+          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt update && sudo apt install vault
+
+      - name: Create OIDC Role
+        env:
+          VAULT_ADDR: https://vault.yral.com
+        run: |
+          # Construct the role name or use the input
+          ROLE_PATH="auth/oidc/role/${{ github.event.inputs.role_name }}"
+          
+          vault write $ROLE_PATH - <<EOF
+          {
+            "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
+            "allowed_redirect_uris": [
+              "https://vault.yral.com/ui/vault/auth/oidc/oidc/callback",
+              "https://vault.yral.com/oidc/callback"
+            ],
+            "user_claim": "email",
+            "oidc_scopes": ["openid", "email", "profile"],
+            "bound_claims": {
+              "email": ["${{ github.event.inputs.admin_email }}"]
+            },
+            "policies": ["admin"],
+            "ttl": "8h"
+          }
+          EOF

@@ -1,0 +1,63 @@
+{
+    # Global options
+    email naitik@gobazzinga.io
+}
+
+# Main vault domain
+vault.yral.com {
+
+    tls /etc/caddy/client-cert.pem /etc/caddy/client-key.pem
+
+    # Reverse proxy to the yral-metadata service
+    reverse_proxy vault:8200 {
+        # Health checking
+        health_uri /v1/sys/health?standbyok=true
+        health_interval 30s
+        health_timeout 10s
+        health_status 200
+
+        transport http {
+            tls
+            tls_trust_pool file /etc/caddy/ca-cert.pem
+            tls_server_name vault.yral.com
+            tls_client_auth /etc/caddy/client-cert.pem /etc/caddy/client-key.pem
+            read_timeout 45s
+            write_timeout 45s
+            dial_timeout 10s
+        }
+
+        lb_policy round_robin
+
+        # Headers
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Security headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        # Prevent content type sniffing
+        X-Content-Type-Options "nosniff"
+        # XSS protection
+        X-XSS-Protection "1; mode=block"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
+
+# Optional: Handle bare IP or other hostnames with redirect
+:80 {
+    respond "Service available at https://vault.yral.com" 200
+}
