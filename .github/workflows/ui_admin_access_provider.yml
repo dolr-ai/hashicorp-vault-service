@@ -3,6 +3,14 @@ name: Create Vault OIDC Admin Role
 on:
   workflow_dispatch:
     inputs:
+        action:
+          description: 'Grant or Revoke access'
+          required: true
+          type: choice
+          options:
+            - grant
+            - revoke
+          default: grant
         admin_email:
           description: 'Email address of the admin to authorize'
           required: true
@@ -36,7 +44,9 @@ jobs:
           echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
           sudo apt update && sudo apt install vault
 
+      # Grant access by creating an OIDC role in Vault
       - name: Create OIDC Role
+        if: ${{ github.event.inputs.action == 'grant' }}
         env:
           VAULT_ADDR: https://vault.yral.com
         run: |
@@ -59,3 +69,12 @@ jobs:
             "ttl": "8h"
           }
           EOF
+
+      # Revoke access by deleting the OIDC role# STEP: REVOKE ACCESS
+      - name: Revoke OIDC Access
+        if: ${{ github.event.inputs.action == 'revoke' }}
+        env:
+          VAULT_ADDR: https://vault.yral.com
+        run: |
+          echo "Deleting role: ${{ github.event.inputs.role_name }}"
+          vault delete auth/oidc/role/${{ github.event.inputs.role_name }}
