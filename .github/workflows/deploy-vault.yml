@@ -3,6 +3,9 @@ name: Deploy Vault Cluster
 # vault cluster is already deployed, do not run it untill specified
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - naitik/reinit_vault
 
 jobs:
   deploy:
@@ -60,6 +63,9 @@ jobs:
         env:
           SERVER_IP: ${{ matrix.server.server_ip }}
         run: |
+          # Remove old vault data, testing reinitiation of vault cluster
+          ssh root@${{ matrix.server.server_ip }} "rm -rf /home/vault/{config,data,logs}"
+          
           # Create deployment directory if not exists
           ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
           
