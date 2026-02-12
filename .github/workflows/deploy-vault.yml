@@ -77,7 +77,6 @@ jobs:
           # Copy docker-compose.yml to base directory
           ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/docker-compose.yml /home/vault/docker-compose.yml"
           ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/Caddyfile /home/vault/"
-
           
           ssh root@${{ matrix.server.server_ip }} "
             cat > /home/vault/config/vault.hcl <<EOF
