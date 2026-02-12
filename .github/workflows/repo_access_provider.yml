@@ -41,6 +41,8 @@ jobs:
       # --- GRANT ACCESS ---
       - name: Create Policy and JWT Role
         if: ${{ github.event.inputs.action == 'grant' }}
+        env:
+          VAULT_ADDR: https://vault.yral.com
         run: |
           REPO="${{ github.event.inputs.repo_name }}"
           POLICY_NAME="$REPO-policy"
@@ -72,6 +74,8 @@ jobs:
       # --- REVOKE ACCESS ---
       - name: Remove Policy and JWT Role
         if: ${{ github.event.inputs.action == 'revoke' }}
+        env:
+          VAULT_ADDR: https://vault.yral.com
         run: |
           REPO="${{ github.event.inputs.repo_name }}"
           
