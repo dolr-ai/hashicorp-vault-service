@@ -1,0 +1,82 @@
+name: Manage Repo Secret Access (JWT)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Grant or Revoke access'
+        required: true
+        type: choice
+        options: [grant, revoke]
+        default: grant
+      repo_name:
+        description: 'Repository name (e.g., hot-or-not-web-leptos-ssr)'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  configure-vault-access:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Authenticate to Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.yral.com
+          method: jwt
+          role: vault-service-role
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          exportToken: true
+      
+      - name: Install Vault CLI
+        run: |
+          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt update && sudo apt install vault
+
+      # --- GRANT ACCESS ---
+      - name: Create Policy and JWT Role
+        if: ${{ github.event.inputs.action == 'grant' }}
+        run: |
+          REPO="${{ github.event.inputs.repo_name }}"
+          POLICY_NAME="$REPO-policy"
+          
+          # 1. Create the Policy
+          echo "Creating policy: $POLICY_NAME"
+          vault policy write "$POLICY_NAME" - <<EOF
+          path "secret/data/$REPO/*" {
+            capabilities = ["read", "list"]
+          }
+          EOF
+
+          # 2. Create the JWT Role
+          echo "Creating JWT role for repo: $REPO"
+          vault write auth/jwt/role/"$REPO-role" - <<EOF
+          {
+            "role_type": "jwt",
+            "bound_audiences": "https://github.com/dolr-ai",
+            "bound_claims_type": "glob",
+            "bound_claims": {
+              "repository": "dolr-ai/$REPO"
+            },
+            "user_claim": "actor",
+            "policies": ["$POLICY_NAME"],
+            "ttl": "1h"
+          }
+          EOF
+
+      # --- REVOKE ACCESS ---
+      - name: Remove Policy and JWT Role
+        if: ${{ github.event.inputs.action == 'revoke' }}
+        run: |
+          REPO="${{ github.event.inputs.repo_name }}"
+          
+          echo "Deleting JWT role: $REPO-role"
+          vault delete auth/jwt/role/"$REPO-role"
+          
+          echo "Deleting policy: $REPO-policy"
+          vault policy delete "$REPO-policy"
