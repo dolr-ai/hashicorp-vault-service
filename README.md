@@ -40,6 +40,10 @@ permissions:
           # Optional: customize the audience
           jwtGithubAudience: "https://github.com/dolr-ai"
           secrets: |
-            secret/data/<REPO_NAME>/config test_pass | DB_PASSWORD ;
-            secret/data/<REPO_NAME>/config test_user | DB_USERNAME ;
+            # To read repo based secrets
+            secret/data/<REPO_NAME>/prod db_password | DB_PASSWORD ;
+            secret/data/<REPO_NAME>/prod db_user | DB_USERNAME ;
+
+            # To read shared secrets
+            secret/data/shared-secret-name value | SHARED_SECRET ;
 ```
