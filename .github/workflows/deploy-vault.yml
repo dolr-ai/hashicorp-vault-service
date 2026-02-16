@@ -60,6 +60,9 @@ jobs:
         env:
           SERVER_IP: ${{ matrix.server.server_ip }}
         run: |
+          # Remove old vault data, testing reinitiation of vault cluster
+          ssh root@${{ matrix.server.server_ip }} "rm -rf /home/vault/{config,data,logs}"
+
           # Create deployment directory if not exists
           ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
           
@@ -71,7 +74,6 @@ jobs:
           # Copy docker-compose.yml to base directory
           ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/docker-compose.yml /home/vault/docker-compose.yml"
           ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/Caddyfile /home/vault/"
-
           
           ssh root@${{ matrix.server.server_ip }} "
             cat > /home/vault/config/vault.hcl <<EOF
@@ -110,7 +112,7 @@ jobs:
           ssh root@${{ matrix.server.server_ip }} "
             echo "🚀 Starting Vault"
             cd /home/vault
-            docker compose down || true
+            docker compose down -v || true
             SERVER_IP=${{ matrix.server.server_ip }} docker compose up -d
 
             echo "✅ Vault container started on ${{ matrix.server.node_id }}"
