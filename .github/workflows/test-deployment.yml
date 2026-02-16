@@ -23,7 +23,7 @@ jobs:
         with:
           url: https://vault.yral.com
           method: jwt
-          role: github-actions-role
+          role: vault-service-role
           # Optional: customize the audience
           jwtGithubAudience: "https://github.com/dolr-ai"
           secrets: |
