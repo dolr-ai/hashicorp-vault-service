@@ -11,8 +11,14 @@ on:
             - grant
             - revoke
           default: grant
-        admin_email:
-          description: 'Email address of the admin'
+        role:
+          description: 'Name of the role'
+          required: true
+          options:
+            - admin
+            - dev
+        email_address:
+          description: 'Email address for the role'
           required: true
           type: string
         role_name:
@@ -65,7 +71,7 @@ jobs:
             "bound_claims": {
               "email": ["${{ github.event.inputs.admin_email }}"]
             },
-            "policies": ["admin"],
+            "policies": ["${{ github.event.inputs.role }}"],
             "ttl": "8h"
           }
           EOF

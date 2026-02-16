@@ -3,9 +3,6 @@ name: Deploy Vault Cluster
 # vault cluster is already deployed, do not run it untill specified
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - naitik/reinit_vault
 
 jobs:
   deploy:
