@@ -133,7 +133,6 @@ jobs:
               VAULT_TLS_SERVER_NAME=${{ matrix.server.server_ip }}
               AWS_ACCESS_KEY_ID=${{ secrets.HETZNER_STORAGE_ACCESS_KEY }}
               AWS_SECRET_ACCESS_KEY=${{ secrets.HETZNER_STORAGE_SECRET_KEY }}
-              EOF
             "
             ssh root@${{ matrix.server.server_ip }} "chmod 600 /etc/vault.d/backup.env"
 
