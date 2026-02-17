@@ -126,7 +126,7 @@ jobs:
             # 1. Save Backup Token
             ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/backup"
             ssh root@${{ matrix.server.server_ip }} "
-              cat > /etc/vault.d/backup.env <<EOF
+              cat > /etc/vault.d/backup.env <<'EOF'
               VAULT_TOKEN=${{ needs.get-backup-token.outputs.backup_token }}
               VAULT_ADDR="https://127.0.0.1:8200"
               VAULT_CACERT="/home/tls/ca-cert.pem"
@@ -184,13 +184,11 @@ jobs:
 
               rm -f \"\${SNAPSHOT_FILE}\"
               log \"Done.\"
-              SCRIPT
-
-              chmod +x /home/vault/backup/vault-snapshot.sh
             "
+            ssh root@${{ matrix.server.server_ip }} "chmod +x /home/vault/backup/vault-snapshot.sh"
 
             ssh root@${{ matrix.server.server_ip }} "
-              cat > /etc/systemd/system/vault-snapshot.service <<EOF
+              cat > /etc/systemd/system/vault-snapshot.service <<'EOF'
               [Unit]
               Description=Vault Raft Snapshot
               After=network.target
@@ -201,9 +199,10 @@ jobs:
               ExecStart=/home/vault/backup/vault-snapshot.sh
               StandardOutput=journal
               StandardError=journal
-              EOF
+              "
 
-              cat > /etc/systemd/system/vault-snapshot.timer <<EOF
+            ssh root@${{ matrix.server.server_ip }} "
+              cat > /etc/systemd/system/vault-snapshot.timer <<'EOF'
               [Unit]
               Description=Vault Raft Snapshot every 12 hours
 
@@ -214,8 +213,7 @@ jobs:
 
               [Install]
               WantedBy=timers.target
-              EOF
-
-              systemctl daemon-reload
-              systemctl enable --now vault-snapshot.timer
             "
+
+            ssh root@${{ matrix.server.server_ip }} "systemctl daemon-reload"
+            ssh root@${{ matrix.server.server_ip }} "systemctl enable --now vault-snapshot.timer"
