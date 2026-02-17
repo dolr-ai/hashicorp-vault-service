@@ -1,0 +1,209 @@
+name: Deploy Multi-Node Vault Backup
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - naitik/small-fixes
+
+# Required: Add permissions for OIDC token
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+
+  get-backup-token:
+    name: Generate Backup Token
+    runs-on: ubuntu-latest
+    env:
+      VAULT_ADDR: https://vault.yral.com
+    outputs:
+      backup_token: ${{ steps.set-token.outputs.token }}
+
+    steps:
+      - name: Authenticate to Vault
+        id: vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ env.VAULT_ADDR }}
+          method: jwt
+          role: vault-service-role
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          exportToken: true
+
+      - name: Generate Periodic Backup Token
+        env:
+          VAULT_ADDR: ${{ env.VAULT_ADDR }}
+        run: |
+          # Create the policy the role will use
+          vault policy write backup-policy - <<EOF
+          path "sys/storage/raft/snapshot" { capabilities = ["read"] }
+          path "auth/token/renew-self" { capabilities = ["update"] }
+          path "sys/health" { capabilities = ["read"] }
+          EOF
+
+          # Create the Token Role (The Template)
+          vault write auth/token/roles/backup-worker-role \
+              allowed_policies="backup-policy" \
+              orphan=true \
+              period="12h" \
+              renewable=true
+
+          # Creating a 12h periodic token that lasts forever if renewed
+          TOKEN_DATA=$(vault token create -role=backup-worker-role -format=json)
+          echo "B_TOKEN=$(echo $TOKEN_DATA | jq -r '.auth.client_token')" >> $GITHUB_ENV
+
+      - name: Set token output
+        id: set-token
+        run: |
+          echo "backup_token=$B_TOKEN" >> $GITHUB_OUTPUT
+
+  deploy-backup:
+    name: Deploying backup script to ${{ matrix.server.server_ip }}
+    runs-on: ubuntu-latest
+    needs: get-backup-token
+    env:
+      SERVER1_IP: ${{ secrets.SERVER1_IP }}
+      SERVER2_IP: ${{ secrets.SERVER2_IP }}
+      SERVER3_IP: ${{ secrets.SERVER3_IP }}
+      VAULT_ADDR: https://vault.yral.com
+    strategy:
+      matrix:
+        server:
+            - node_id: vault-1
+              server_ip: $SERVER1_IP
+
+            - node_id: vault-2
+              server_ip: $SERVER2_IP
+
+            - node_id: vault-3
+              server_ip: $SERVER3_IP
+
+      max-parallel: 1
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ matrix.server.server_ip }} >> ~/.ssh/known_hosts
+
+      - name: Check server connectivity
+        run: |
+          ssh -o ConnectTimeout=10 root@${{ matrix.server.server_ip }} "echo 'Server connection successful'"
+
+      - name: install aws cli on ${{ matrix.server.server_ip }}
+        run: |
+          ssh root@${{ matrix.server.server_ip }} "
+            apt update && apt install -y awscli
+          "
+          
+      - name: run backup deployment script on ${{ matrix.server.server_ip }}
+        env:
+          SERVER_IP: ${{ matrix.server.server_ip }}
+          B_TOKEN: ${{ env.B_TOKEN }}
+        run: |
+
+            # 1. Save Backup Token
+            ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/backup"
+            ssh root@${{ matrix.server.server_ip }} "
+              cat > /etc/vault.d/backup.env <<EOF
+              VAULT_TOKEN=${{ needs.get-backup-token.outputs.backup_token }}
+              VAULT_ADDR="https://127.0.0.1:8200"
+              VAULT_CACERT="/home/tls/ca-cert.pem"
+              VAULT_TLS_SERVER_NAME=${{ matrix.server.server_ip }}
+              AWS_ACCESS_KEY_ID=${{ secrets.HETZNER_STORAGE_ACCESS_KEY }}
+              AWS_SECRET_ACCESS_KEY=${{ secrets.HETZNER_STORAGE_SECRET_KEY }}
+              EOF
+            "
+            ssh root@${{ matrix.server.server_ip }} "chmod 600 /etc/vault.d/backup.env"
+
+            ssh root@${{ matrix.server.server_ip }} "
+              cat > /home/vault/backup/vault-snapshot.sh <<'SCRIPT'
+              #!/bin/bash
+              set -euo pipefail
+
+              S3_BUCKET='${{ secrets.BACKUP_BUCKET_NAME }}'
+              S3_ENDPOINT='${{ secrets.BACKUP_S3_ENDPOINT }}'
+              S3_PREFIX='snapshots'
+              RETENTION_DAYS=30
+              SNAPSHOT_FILE=\"/tmp/vault-\$(date +%Y%m%d-%H%M%S).snap\"
+
+              log() { echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] \$*\"; }
+
+              # Check if this node is the leader
+              STATUS=$(curl -k -s -o /dev/null -w \"%{http_code}\" https://127.0.0.1:8200/v1/sys/health)
+
+              if [ "\$STATUS" != "200" ]; then
+                log \"Not the leader, skipping.\"
+                exit 0
+              fi
+
+              source /etc/vault.d/backup.env
+              vault token renew-self > /dev/null
+
+              log \"Taking snapshot...\"
+              vault operator raft snapshot save "\${SNAPSHOT_FILE}"
+
+              log \"Uploading to Hetzner...\"
+              aws s3 cp \"\${SNAPSHOT_FILE}\" \
+                \"s3://\${S3_BUCKET}/\${S3_PREFIX}/\$(basename \${SNAPSHOT_FILE})\" \
+                --endpoint-url \"\${S3_ENDPOINT}\"
+
+              log \"Pruning old snapshots...\"
+              CUTOFF=\$(date -d \"-\${RETENTION_DAYS} days\" +%Y%m%d)
+              aws s3 ls "s3://\${S3_BUCKET}/\${S3_PREFIX}/" --endpoint-url "\${S3_ENDPOINT}" \\
+                | awk '{print \$4}' \\
+                | while read -r key; do
+                    FILE_DATE=\$(echo \"\${key}\" | grep -oP '\d{8}' || true)
+                    if [[ -n \"\${FILE_DATE}\" && \"\${FILE_DATE}\" < \"\${CUTOFF}\" ]]; then
+                      log \"Deleting old snapshot: \${key}\"
+                      aws s3 rm \"s3://\${S3_BUCKET}/\${S3_PREFIX}/\${key}\" \\
+                        --endpoint-url \"\${S3_ENDPOINT}\"
+                    fi
+                  done
+
+              rm -f \"\${SNAPSHOT_FILE}\"
+              log \"Done.\"
+              SCRIPT
+
+              chmod +x /home/vault/backup/vault-snapshot.sh
+            "
+
+            ssh root@${{ matrix.server.server_ip }} "
+              cat > /etc/systemd/system/vault-snapshot.service <<EOF
+              [Unit]
+              Description=Vault Raft Snapshot
+              After=network.target
+
+              [Service]
+              Type=oneshot
+              EnvironmentFile=/etc/vault.d/backup.env
+              ExecStart=/home/vault/backup/vault-snapshot.sh
+              StandardOutput=journal
+              StandardError=journal
+              EOF
+
+              cat > /etc/systemd/system/vault-snapshot.timer <<EOF
+              [Unit]
+              Description=Vault Raft Snapshot every 12 hours
+
+              [Timer]
+              OnBootSec=5min
+              OnUnitActiveSec=12h
+              Persistent=true
+
+              [Install]
+              WantedBy=timers.target
+              EOF
+
+              systemctl daemon-reload
+              systemctl enable --now vault-snapshot.timer
+            "
