@@ -150,7 +150,7 @@ jobs:
               log() { echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] \$*\"; }
 
               # Check if this node is the leader
-              STATUS=$(curl -k -s -o /dev/null -w \"%{http_code}\" https://127.0.0.1:8200/v1/sys/health)
+              STATUS=\$(curl -k -s -o /dev/null -w \"%{http_code}\" https://127.0.0.1:8200/v1/sys/health)
 
               if [ "\$STATUS" != "200" ]; then
                 log \"Not the leader, skipping.\"
