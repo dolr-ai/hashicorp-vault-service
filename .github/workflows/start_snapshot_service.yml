@@ -2,9 +2,6 @@ name: Deploy Multi-Node Vault Backup
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - naitik/small_fixes
 
 # Required: Add permissions for OIDC token
 permissions:
@@ -105,17 +102,17 @@ jobs:
         run: |
           ssh -o ConnectTimeout=10 root@${{ matrix.server.server_ip }} "echo 'Server connection successful'"
 
-      # - name: Install AWS CLI on ${{ matrix.server.server_ip }}
-      #   run: |
-      #     ssh root@${{ matrix.server.server_ip }} "
-      #       if ! command -v aws &> /dev/null; then
-      #         apt update && apt install -y unzip curl
-      #         curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o /tmp/awscliv2.zip
-      #         unzip -q /tmp/awscliv2.zip -d /tmp
-      #         /tmp/aws/install
-      #         rm -rf /tmp/aws /tmp/awscliv2.zip
-      #       fi
-      #     "
+      - name: Install AWS CLI on ${{ matrix.server.server_ip }}
+        run: |
+          ssh root@${{ matrix.server.server_ip }} "
+            if ! command -v aws &> /dev/null; then
+              apt update && apt install -y unzip curl
+              curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o /tmp/awscliv2.zip
+              unzip -q /tmp/awscliv2.zip -d /tmp
+              /tmp/aws/install
+              rm -rf /tmp/aws /tmp/awscliv2.zip
+            fi
+          "
           
       - name: run backup deployment script on ${{ matrix.server.server_ip }}
         env:
