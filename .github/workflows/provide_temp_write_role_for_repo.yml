@@ -1,0 +1,86 @@
+name: Manage Repo Write Access (JWT) - Temporary
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo_name:
+        description: 'Repository name (e.g., hot-or-not-web-leptos-ssr)'
+        required: true
+        type: string
+      duration:
+        description: 'Access duration (only for grant)'
+        required: false
+        type: choice
+        options: ['1h', '2h', '4h', '8h', '24h']
+        default: '2h'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  configure-vault-write-access:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Authenticate to Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.yral.com
+          method: jwt
+          role: vault-service-role
+          jwtGithubAudience: "https://github.com/dolr-ai"
+          exportToken: true
+      
+      - name: Install Vault CLI
+        run: |
+          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt update && sudo apt install vault
+      
+      - name: Grant Write Access with Auto-Revoke
+        env:
+          VAULT_ADDR: https://vault.yral.com
+        run: |
+          REPO="${{ github.event.inputs.repo_name }}"
+          REPO_WRITE_POLICY_NAME="$REPO-write-policy"
+          REPO_WRITE_ROLE_NAME="$REPO-write-role"
+          DURATION="${{ github.event.inputs.duration }}"
+          
+          # Convert duration to seconds for lease
+          case "$DURATION" in
+            "1h") TTL_SECONDS=3600 ;;
+            "2h") TTL_SECONDS=7200 ;;
+            "4h") TTL_SECONDS=14400 ;;
+            "8h") TTL_SECONDS=28800 ;;
+            "24h") TTL_SECONDS=86400 ;;
+          esac
+          
+          # Create policy and role with explicit max TTL (cannot be renewed beyond this)
+          # 1. Create the Policy
+          echo "Creating policy: $REPO_WRITE_POLICY_NAME"
+          vault policy write "$REPO_WRITE_POLICY_NAME" - <<EOF
+          path "secret/data/$REPO/*" {
+            capabilities = ["create", "update", "read", "list"]
+          }
+          EOF
+
+          # 2. Create the JWT Role
+          echo "Creating JWT role for repo: $REPO"
+          vault write auth/jwt/role/"$REPO_WRITE_ROLE_NAME" - <<EOF
+          {
+            "role_type": "jwt",
+            "bound_audiences": "https://github.com/dolr-ai",
+            "bound_claims_type": "glob",
+            "bound_claims": {
+              "repository": "dolr-ai/$REPO"
+            },
+            "user_claim": "actor",
+            "policies": ["$REPO_WRITE_POLICY_NAME"],
+            "ttl": "${TTL_SECONDS}s",
+            "token_explicit_max_ttl": "${TTL_SECONDS}s"
+          }
+          EOF
+          
+          echo "✅ Write access granted with hard expiry in $DURATION"
+          echo "🔒 Tokens cannot be renewed beyond $DURATION"
