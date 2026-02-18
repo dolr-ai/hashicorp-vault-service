@@ -128,7 +128,7 @@ jobs:
             ssh root@${{ matrix.server.server_ip }} "
               cat > /etc/vault.d/backup.env <<'EOF'
               VAULT_TOKEN=${{ needs.get-backup-token.outputs.backup_token }}
-              VAULT_ADDR="https://127.0.0.1:8200"
+              VAULT_ADDR="https://${{ matrix.server.server_ip }}:8200"
               VAULT_CACERT="/home/tls/ca-cert.pem"
               VAULT_TLS_SERVER_NAME=${{ matrix.server.server_ip }}
               AWS_ACCESS_KEY_ID=${{ secrets.HETZNER_STORAGE_ACCESS_KEY }}
@@ -137,7 +137,7 @@ jobs:
             ssh root@${{ matrix.server.server_ip }} "chmod 600 /etc/vault.d/backup.env"
 
             ssh root@${{ matrix.server.server_ip }} "
-              cat > /home/vault/backup/vault-snapshot.sh <<'SCRIPT'
+            cat > /home/vault/backup/vault-snapshot.sh <<'SCRIPT'
               #!/bin/bash
               set -euo pipefail
 
@@ -184,6 +184,8 @@ jobs:
               rm -f \"\${SNAPSHOT_FILE}\"
               log \"Done.\"
             "
+
+            ssh root@${{ matrix.server.server_ip }} "sed -i 's/^  //' /home/vault/backup/vault-snapshot.sh"
             ssh root@${{ matrix.server.server_ip }} "chmod +x /home/vault/backup/vault-snapshot.sh"
 
             ssh root@${{ matrix.server.server_ip }} "
@@ -198,7 +200,7 @@ jobs:
               ExecStart=/home/vault/backup/vault-snapshot.sh
               StandardOutput=journal
               StandardError=journal
-              "
+            "
 
             ssh root@${{ matrix.server.server_ip }} "
               cat > /etc/systemd/system/vault-snapshot.timer <<'EOF'
