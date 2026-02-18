@@ -1,4 +1,4 @@
-name: Vault OIDC Admin Role Provider
+name: Vault OIDC Access Provider For UI
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ permissions:
   contents: read
 
 jobs:
-  handle-admin-access:
+  manage-oidc-access:
     runs-on: ubuntu-latest
     env:
       VAULT_ADDR: https://vault.yral.com
