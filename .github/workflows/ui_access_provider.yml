@@ -12,17 +12,14 @@ on:
             - revoke
           default: grant
         role:
-          description: 'Name of the role'
+          description: 'Role type'
           required: true
+          type: choice
           options:
             - admin
             - dev
         email_address:
-          description: 'Email address for the role'
-          required: true
-          type: string
-        role_name:
-          description: 'Name of the role (e.g., admin-john-doe)'
+          description: 'Email address for the user'
           required: true
           type: string
 
@@ -33,6 +30,8 @@ permissions:
 jobs:
   handle-admin-access:
     runs-on: ubuntu-latest
+    env:
+      VAULT_ADDR: https://vault.yral.com
 
     steps:
       - name: Authenticate to Vault
@@ -48,18 +47,74 @@ jobs:
         run: |
           wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-          sudo apt update && sudo apt install vault
+          sudo apt update && sudo apt install vault jq
 
-      # Grant access by creating an OIDC role in Vault
-      - name: Create OIDC Role
-        if: ${{ github.event.inputs.action == 'grant' }}
-        env:
-          VAULT_ADDR: https://vault.yral.com
+      - name: Ensure Policies Exist
         run: |
-          # Construct the role name or use the input
-          ROLE_PATH="auth/oidc/role/${{ github.event.inputs.role_name }}"
+          # Check and create admin policy if needed
+          if ! vault policy read admin &>/dev/null; then
+            echo "Creating admin policy..."
+            vault policy write admin - <<'EOF'
+          path "secret/*" {
+            capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+          }
+
+          path "sys/*" {
+            capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+          }
+
+          path "auth/*" {
+            capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+          }
+          EOF
+          else
+            echo "admin policy already exists"
+          fi
+
+          # Check and create dev policy if needed
+          if ! vault policy read dev &>/dev/null; then
+            echo "Creating dev policy..."
+            vault policy write dev - <<'EOF'
+          path "secret/*" {
+            capabilities = ["create", "read", "update", "list"]
+          }
+
+          path "sys/policies/acl/*" {
+            capabilities = ["read", "list"]
+          }
+          EOF
+          else
+            echo "dev policy already exists"
+          fi
+
+      - name: Grant Access - Add Email to Role
+        if: ${{ github.event.inputs.action == 'grant' }}
+        run: |
+          ROLE_NAME="${{ github.event.inputs.role }}"
+          EMAIL="${{ github.event.inputs.email_address }}"
           
-          vault write $ROLE_PATH - <<EOF
+          echo "Processing role: $ROLE_NAME"
+          
+          # Check if role exists
+          if vault read auth/oidc/role/$ROLE_NAME &>/dev/null; then
+            echo "Role exists, reading current configuration..."
+            
+            # Get current bound_claims emails
+            CURRENT_EMAILS=$(vault read -format=json auth/oidc/role/$ROLE_NAME | jq -r '.data.bound_claims.email // []' | jq -r '.[]')
+            
+            # Check if email already exists
+            if echo "$CURRENT_EMAILS" | grep -qx "$EMAIL"; then
+              echo "Email $EMAIL already exists in role $ROLE_NAME"
+              exit 0
+            fi
+            
+            # Add new email to the list
+            NEW_EMAILS=$(echo "$CURRENT_EMAILS" | jq -R -s 'split("\n") | map(select(length > 0))')
+            NEW_EMAILS=$(echo "$NEW_EMAILS" | jq --arg email "$EMAIL" '. + [$email]')
+            
+            echo "Adding $EMAIL to role $ROLE_NAME"
+            
+            vault write auth/oidc/role/$ROLE_NAME - <<EOF
           {
             "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
             "allowed_redirect_uris": [
@@ -69,18 +124,86 @@ jobs:
             "user_claim": "email",
             "oidc_scopes": ["openid", "email", "profile"],
             "bound_claims": {
-              "email": ["${{ github.event.inputs.admin_email }}"]
+              "email": $NEW_EMAILS
             },
             "policies": ["${{ github.event.inputs.role }}"],
             "ttl": "8h"
           }
           EOF
+          else
+            echo "Role does not exist, creating new role with email $EMAIL"
+            
+            vault write auth/oidc/role/$ROLE_NAME - <<EOF
+          {
+            "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
+            "allowed_redirect_uris": [
+              "https://vault.yral.com/ui/vault/auth/oidc/oidc/callback",
+              "https://vault.yral.com/oidc/callback"
+            ],
+            "user_claim": "email",
+            "oidc_scopes": ["openid", "email", "profile"],
+            "bound_claims": {
+              "email": ["$EMAIL"]
+            },
+            "policies": ["${{ github.event.inputs.role }}"],
+            "ttl": "8h"
+          }
+          EOF
+          fi
+          
+          echo "✅ Successfully granted ${{ github.event.inputs.role }} access to $EMAIL"
 
-      # Revoke access by deleting the OIDC role# STEP: REVOKE ACCESS
-      - name: Revoke OIDC Access
+      - name: Revoke Access - Remove Email from Role
         if: ${{ github.event.inputs.action == 'revoke' }}
-        env:
-          VAULT_ADDR: https://vault.yral.com
         run: |
-          echo "Deleting role: ${{ github.event.inputs.role_name }}"
-          vault delete auth/oidc/role/${{ github.event.inputs.role_name }}
+          ROLE_NAME="${{ github.event.inputs.role }}"
+          EMAIL="${{ github.event.inputs.email_address }}"
+          
+          echo "Removing $EMAIL from role: $ROLE_NAME"
+          
+          # Check if role exists
+          if ! vault read auth/oidc/role/$ROLE_NAME &>/dev/null; then
+            echo "❌ Role $ROLE_NAME does not exist"
+            exit 1
+          fi
+          
+          # Get current bound_claims emails
+          CURRENT_EMAILS=$(vault read -format=json auth/oidc/role/$ROLE_NAME | jq -r '.data.bound_claims.email // []' | jq -r '.[]')
+          
+          # Check if email exists
+          if ! echo "$CURRENT_EMAILS" | grep -qx "$EMAIL"; then
+            echo "❌ Email $EMAIL not found in role $ROLE_NAME"
+            exit 1
+          fi
+          
+          # Remove email from the list
+          NEW_EMAILS=$(echo "$CURRENT_EMAILS" | grep -v "^$EMAIL$" | jq -R -s 'split("\n") | map(select(length > 0))')
+          
+          # Check if this was the last email
+          EMAIL_COUNT=$(echo "$NEW_EMAILS" | jq 'length')
+          
+          if [ "$EMAIL_COUNT" -eq 0 ]; then
+            echo "This is the last email in the role. Deleting role $ROLE_NAME"
+            vault delete auth/oidc/role/$ROLE_NAME
+          else
+            echo "Updating role $ROLE_NAME without $EMAIL"
+            
+            vault write auth/oidc/role/$ROLE_NAME - <<EOF
+          {
+            "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
+            "allowed_redirect_uris": [
+              "https://vault.yral.com/ui/vault/auth/oidc/oidc/callback",
+              "https://vault.yral.com/oidc/callback"
+            ],
+            "user_claim": "email",
+            "oidc_scopes": ["openid", "email", "profile"],
+            "bound_claims": {
+              "email": $NEW_EMAILS
+            },
+            "policies": ["${{ github.event.inputs.role }}"],
+            "ttl": "8h"
+          }
+          EOF
+          fi
+          
+          echo "✅ Successfully revoked ${{ github.event.inputs.role }} access from $EMAIL"
