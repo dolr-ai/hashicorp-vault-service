@@ -184,12 +184,12 @@ jobs:
             echo "⚠️  MANUAL INTERVENTION REQUIRED"
             echo "======================================================================"
             echo ""
-            echo "Vault is started but SEALED. You must:"
+            echo "Vault is started but not intialized yet. You must run first : 
+            echo "   docker exec -it vault vault operator init -key-shares=1 -key-threshold=1  "
+            echo "   we require this key and token temporarily to perform the restore. After restore, we can use older keys and tokens."
             echo ""
-            echo "1. Unseal Vault (requires 3 unseal keys):"
+            echo "1. Unseal Vault (requires 1 unseal key):"
             echo "   docker exec -it vault vault operator unseal   # Enter unseal key 1"
-            echo "   docker exec -it vault vault operator unseal   # Enter unseal key 2"
-            echo "   docker exec -it vault vault operator unseal   # Enter unseal key 3"
             echo ""
             echo "2. Login with root token:"
             echo "   docker exec -it vault vault login   # Enter root token"
@@ -200,13 +200,20 @@ jobs:
             echo "4. Restart vault-1:"
             echo "   cd /home/vault && SERVER_IP=${{ env.SERVER1_IP }} docker compose restart vault"
             echo ""
-            echo "5. Unseal again after restart:"
+            echo "5. Unseal again after restart with older (original) unseal keys:"
             echo "   docker exec -it vault vault operator unseal "
             echo "   docker exec -it vault vault operator unseal "
             echo "   docker exec -it vault vault operator unseal "
             echo ""
+            echo "6. ssh into vault-2 and vault-3 and run /tmp/restore-followers.sh and perform directed steps"
+            echo ""
+            echo "Once all nodes are restored and unsealed, you can check cluster health and peers here"
+            echo "7. Verify cluster peers:"
+            echo "   docker exec -it vault vault login    # Enter root token(original)"
+            echo "   docker exec -it vault vault operator raft list-peers"
+            echo ""
             echo "======================================================================"
-            SCRIPT
+          SCRIPT
 
           ssh root@${{ env.SERVER1_IP }} "chmod +x /tmp/restore-vault.sh"
 
@@ -218,9 +225,9 @@ jobs:
             #!/bin/bash
             set -euo pipefail
 
-            echo "🚀 Starting vault-2 and vault-3..."
+            echo "🚀 Starting vault-2..."
 
-            ssh root@${{ env.SERVER2_IP }} "cd /home/vault && SERVER_IP=${{ env.SERVER2_IP }} docker compose up -d vault" &
+            cd /home/vault && SERVER_IP=${{ env.SERVER2_IP }} docker compose up -d vault &
             wait
 
             echo "⏳ Waiting 10 seconds for nodes to start..."
@@ -236,10 +243,8 @@ jobs:
             echo "  docker exec -it vault vault operator unseal "
             echo "  docker exec -it vault vault operator unseal "
             echo ""
-            echo "Then verify cluster:"
-            echo "  docker exec -it vault vault operator raft list-peers"
             echo "======================================================================"
-            SCRIPT
+          SCRIPT
 
           ssh root@${{ env.SERVER2_IP }} "chmod +x /tmp/restore-followers.sh"
 
@@ -251,9 +256,9 @@ jobs:
             #!/bin/bash
             set -euo pipefail
 
-            echo "🚀 Starting vault-2 and vault-3..."
+            echo "🚀 Starting vault-3..."
 
-            ssh root@${{ env.SERVER3_IP }} "cd /home/vault && SERVER_IP=${{ env.SERVER3_IP }} docker compose up -d vault" &
+            cd /home/vault && SERVER_IP=${{ env.SERVER3_IP }} docker compose up -d vault &
             wait
 
             echo "⏳ Waiting 10 seconds for nodes to start..."
@@ -269,10 +274,8 @@ jobs:
             echo "  docker exec -it vault vault operator unseal "
             echo "  docker exec -it vault vault operator unseal "
             echo ""
-            echo "Then verify cluster:"
-            echo "  docker exec -it vault vault operator raft list-peers"
             echo "======================================================================"
-            SCRIPT
+          SCRIPT
 
           ssh root@${{ env.SERVER3_IP }} "chmod +x /tmp/restore-followers.sh"
 
