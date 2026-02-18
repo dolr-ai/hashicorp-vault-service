@@ -1,4 +1,4 @@
-name: Manage Repo Secret Access (JWT)
+name: Manage Repo To Vault Access (JWT)
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 jobs:
-  configure-vault-access:
+  configure-vault-access-for-repo:
     runs-on: ubuntu-latest
     
     steps:
