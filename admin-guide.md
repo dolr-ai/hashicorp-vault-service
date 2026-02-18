@@ -17,7 +17,7 @@ docker exec -it vault vault kv put secret/test-app/config \
 ```
 
 ### Create policy and grant access to repo
-- admin can create policy and prove access of particular repo related secret to repo using repo_access_provider.yml .
+- admin can create policy and prove access of particular repo related secret to repo using repo_to_vault_access_provider.yml .
 - it will take repo name as input and we can select grant/revoke action.
 - as example below listed policy will be created for repo and repo related role will be created with this policy
 
@@ -157,42 +157,4 @@ docker exec -it vault vault write auth/jwt/role/vault-service-role @/tmp/vault-s
 
 //verify role
 docker exec -it vault vault read auth/jwt/role/vault-service-role-role
-```
-
-- create admin policy
-```hcl
-# admin-policy
-path "secret/*" {
-  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
-}
-
-path "sys/*" {
-  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
-}
-
-path "auth/*" {
-  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
-}
-```
-```bash
-//create admin policy, so that we can assign it admins with their role.
-docker cp admin-policy.hcl vault:/tmp/admin-policy.hcl
-docker exec -it vault vault policy write admin /tmp/admin-policy.hcl
-```
-
-- create dev policy
-```hcl
-# dev-policy
-path "secret/*" {
-  capabilities = ["create", "update", "list"]
-}
-
-path "sys/policies/acl/*" {
-  capabilities = ["create", "update", "list"]
-}
-```
-```bash
-//create dev policy, so that we can assign it devs with their role.
-docker cp dev-policy.hcl vault:/tmp/dev-policy.hcl
-docker exec -it vault vault policy write dev /tmp/dev-policy.hcl
 ```

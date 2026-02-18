@@ -2,7 +2,7 @@
 
 This project uses **HashiCorp Vault** for centralized secret management and **GitHub Actions OIDC (JWT)** for secure, short-lived authentication from CI pipelines.
 
-✅ Admins can manually store or create role and yml file to load secrets in Vault  
+✅ Admins can provide access to repo to fetch secret, provide shared secret access to repo, create common secrets and UI access to dev and admin.  
 ✅ Developers can **fetch** secrets in GitHub Actions  
 ❌ NO one can see raw secret values  
 
@@ -28,7 +28,8 @@ permissions:
 ```
 
 3. Fetch passwords in your github-action:
-- ***role** will be set for repository, so that repo can be access only secrets which are related to repo.
+- **role** will be set for repository, so that repo can be access only secrets which are related to repo.
+- if you want to add shared secret ask admin to add shared secret to your repo.
 
 ```yml
 - name: Import Secrets from Vault
