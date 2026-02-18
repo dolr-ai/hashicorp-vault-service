@@ -177,14 +177,7 @@ jobs:
             SERVER_IP=${{ env.SERVER1_IP }} docker compose up -d vault
 
             echo "⏳ Waiting for Vault to start..."
-            for i in {1..30}; do
-              if curl -s --cacert ${VAULT_CACERT} ${VAULT_ADDR}/v1/sys/health &>/dev/null; then
-                echo "✅ Vault is responding"
-                break
-              fi
-              echo "Waiting... ($i/30)"
-              sleep 2
-            done
+            sleep 15
 
             echo ""
             echo "======================================================================"
