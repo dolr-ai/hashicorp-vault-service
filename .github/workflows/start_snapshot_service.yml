@@ -158,10 +158,9 @@ jobs:
               fi
 
               source /etc/vault.d/backup.env
-              vault token renew-self > /dev/null
-
+              VAULT_ADDR=\$VAULT_ADDR VAULT_CACERT=\$VAULT_CACERT VAULT_TOKEN=\$VAULT_TOKEN vault token renew > /dev/null
               log \"Taking snapshot...\"
-              vault operator raft snapshot save "\${SNAPSHOT_FILE}"
+              VAULT_ADDR=\$VAULT_ADDR VAULT_CACERT=\$VAULT_CACERT VAULT_TOKEN=\$VAULT_TOKEN vault operator raft snapshot save "\${SNAPSHOT_FILE}"
 
               log \"Uploading to Hetzner...\"
               aws s3 cp \"\${SNAPSHOT_FILE}\" \
