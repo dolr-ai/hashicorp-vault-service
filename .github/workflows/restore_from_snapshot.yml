@@ -1,0 +1,285 @@
+name: Restore Vault Cluster from Snapshot
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot_file:
+        description: 'Snapshot filename (leave empty for latest)'
+        required: false
+        type: string
+      confirm_restore:
+        description: 'Type "RESTORE" to confirm destructive operation'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-and-prepare:
+    name: Validate and Download Snapshot
+    runs-on: ubuntu-latest
+    outputs:
+      snapshot_name: ${{ steps.get-snapshot.outputs.snapshot_name }}
+    
+    steps:
+      - name: Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_restore }}" != "RESTORE" ]; then
+            echo "❌ Confirmation failed. You must type 'RESTORE' to proceed."
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+
+      - name: Install AWS CLI
+        run: |
+          if ! command -v aws &> /dev/null; then
+            apt update && apt install -y unzip curl
+            curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o /tmp/awscliv2.zip
+            unzip -q /tmp/awscliv2.zip -d /tmp
+            /tmp/aws/install
+            rm -rf /tmp/aws /tmp/awscliv2.zip
+          fi
+
+      - name: Determine Snapshot to Use
+        id: get-snapshot
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.HETZNER_STORAGE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.HETZNER_STORAGE_SECRET_KEY }}
+          S3_BUCKET: ${{ secrets.BACKUP_BUCKET_NAME }}
+          S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+        run: |
+          
+          if [ -n "${{ github.event.inputs.snapshot_file }}" ]; then
+            SNAPSHOT="${{ github.event.inputs.snapshot_file }}"
+            echo "Using specified snapshot: $SNAPSHOT"
+          else
+            echo "Finding latest snapshot..."
+            SNAPSHOT=$(aws s3 ls "s3://${S3_BUCKET}/snapshots/" --endpoint-url "${S3_ENDPOINT}" \
+              | sort | tail -n 1 | awk '{print $4}')
+            
+            if [ -z "$SNAPSHOT" ]; then
+              echo "❌ No snapshots found in S3"
+              exit 1
+            fi
+            echo "Latest snapshot: $SNAPSHOT"
+          fi
+          
+          # Verify snapshot exists
+          if ! aws s3 ls "s3://${S3_BUCKET}/snapshots/${SNAPSHOT}" --endpoint-url "${S3_ENDPOINT}" &>/dev/null; then
+            echo "❌ Snapshot not found: $SNAPSHOT"
+            exit 1
+          fi
+          
+          echo "snapshot_name=$SNAPSHOT" >> $GITHUB_OUTPUT
+          echo "✅ Snapshot validated: $SNAPSHOT"
+
+  restore-cluster:
+    name: Restore Vault Cluster
+    needs: validate-and-prepare
+    runs-on: ubuntu-latest
+    env:
+      SERVER1_IP: ${{ secrets.SERVER1_IP }}
+      SERVER2_IP: ${{ secrets.SERVER2_IP }}
+      SERVER3_IP: ${{ secrets.SERVER3_IP }}
+      SNAPSHOT_NAME: ${{ needs.validate-and-prepare.outputs.snapshot_name }}
+    
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
+
+      - name: Add servers to known hosts
+        run: |
+          ssh-keyscan -H ${{ env.SERVER1_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.SERVER2_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.SERVER3_IP }} >> ~/.ssh/known_hosts
+
+      - name: Install AWS CLI
+        run: |
+          if ! command -v aws &> /dev/null; then
+            apt update && apt install -y unzip curl
+            curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o /tmp/awscliv2.zip
+            unzip -q /tmp/awscliv2.zip -d /tmp
+            /tmp/aws/install
+            rm -rf /tmp/aws /tmp/awscliv2.zip
+          fi
+
+      - name: Stop Vault on All Nodes
+        run: |
+          echo "🛑 Stopping Vault cluster..."
+          
+          ssh root@${{ env.SERVER1_IP }} "cd /home/vault && docker compose stop vault" &
+          ssh root@${{ env.SERVER2_IP }} "cd /home/vault && docker compose stop vault" &
+          ssh root@${{ env.SERVER3_IP }} "cd /home/vault && docker compose stop vault" &
+          wait
+          
+          echo "✅ All Vault nodes stopped"
+
+      - name: Backup Current Data on All Nodes
+        run: |
+          echo "💾 Creating safety backups..."
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          ssh root@${{ env.SERVER1_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
+          ssh root@${{ env.SERVER2_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
+          ssh root@${{ env.SERVER3_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
+          wait
+          
+          echo "✅ Backups created at /root/vault-data-backup-${TIMESTAMP}.tar.gz on all nodes"
+
+      - name: Clear Old Raft Data on All Nodes
+        run: |
+          echo "🧹 Clearing old Raft data..."
+          
+          ssh root@${{ env.SERVER1_IP }} "rm -rf /home/vault/data/*" &
+          ssh root@${{ env.SERVER2_IP }} "rm -rf /home/vault/data/*" &
+          ssh root@${{ env.SERVER3_IP }} "rm -rf /home/vault/data/*" &
+          wait
+          
+          echo "✅ Old data cleared"
+
+      - name: Download and Distribute Snapshot
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.HETZNER_STORAGE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.HETZNER_STORAGE_SECRET_KEY }}
+          S3_BUCKET: ${{ secrets.BACKUP_BUCKET_NAME }}
+          S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+        run: |
+          echo "📥 Downloading snapshot: ${{ env.SNAPSHOT_NAME }}"
+          
+          aws s3 cp "s3://${S3_BUCKET}/snapshots/${{ env.SNAPSHOT_NAME }}" \
+            /tmp/vault-restore.snap \
+            --endpoint-url "${S3_ENDPOINT}"
+          
+          echo "✅ Snapshot downloaded"
+          
+          echo "📤 Copying snapshot to all nodes..."
+          scp /tmp/vault-restore.snap root@${{ env.SERVER1_IP }}:/tmp/ &
+          scp /tmp/vault-restore.snap root@${{ env.SERVER2_IP }}:/tmp/ &
+          scp /tmp/vault-restore.snap root@${{ env.SERVER3_IP }}:/tmp/ &
+          wait
+          
+          echo "✅ Snapshot distributed to all nodes"
+
+      - name: Create Restore Script on vault-1
+        run: |
+          echo "📝 Creating restore script on vault-1..."
+          
+          ssh root@${{ env.SERVER1_IP }} 'cat > /tmp/restore-vault.sh' <<'SCRIPT'
+            #!/bin/bash
+            set -euo pipefail
+
+            echo "🚀 Starting vault-1..."
+            cd /home/vault
+            SERVER_IP=${{ env.SERVER1_IP }} docker compose up -d vault
+
+            echo "⏳ Waiting for Vault to start..."
+            for i in {1..30}; do
+              if curl -s --cacert ${VAULT_CACERT} ${VAULT_ADDR}/v1/sys/health &>/dev/null; then
+                echo "✅ Vault is responding"
+                break
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+
+            echo ""
+            echo "======================================================================"
+            echo "⚠️  MANUAL INTERVENTION REQUIRED"
+            echo "======================================================================"
+            echo ""
+            echo "Vault is started but SEALED. You must:"
+            echo ""
+            echo "1. Unseal Vault (requires 3 unseal keys):"
+            echo "   docker exec -it vault vault operator unseal   # Enter unseal key 1"
+            echo "   docker exec -it vault vault operator unseal   # Enter unseal key 2"
+            echo "   docker exec -it vault vault operator unseal   # Enter unseal key 3"
+            echo ""
+            echo "2. Login with root token:"
+            echo "   vault login   # Enter root token"
+            echo ""
+            echo "3. Restore snapshot:"
+            echo "   docker exec -it vault vault operator raft snapshot restore -force /tmp/vault-restore.snap"
+            echo ""
+            echo "4. Restart vault-1:"
+            echo "   cd /home/vault && docker compose restart vault"
+            echo ""
+            echo "5. Unseal again after restart:"
+            echo "   docker exec -it vault vault operator unseal "
+            echo "   docker exec -it vault vault operator unseal "
+            echo "   docker exec -it vault vault operator unseal "
+            echo ""
+            echo "======================================================================"
+            SCRIPT
+
+          ssh root@${{ env.SERVER1_IP }} "chmod +x /tmp/restore-vault.sh"
+
+      - name: Create Follower Restore Script on vault-2
+        run: |
+          echo "📝 Creating follower restore script..."
+          
+          ssh root@${{ env.SERVER2_IP }} 'cat > /tmp/restore-followers.sh' <<'SCRIPT'
+            #!/bin/bash
+            set -euo pipefail
+
+            echo "🚀 Starting vault-2 and vault-3..."
+
+            ssh root@${{ env.SERVER2_IP }} "cd /home/vault && SERVER_IP=${{ env.SERVER2_IP }} docker compose up -d vault" &
+            wait
+
+            echo "⏳ Waiting 10 seconds for nodes to start..."
+            sleep 10
+
+            echo ""
+            echo "======================================================================"
+            echo "⚠️  UNSEAL FOLLOWER NODE"
+            echo "======================================================================"
+            echo ""
+            echo "For vault-2:"
+            echo "  docker exec -it vault vault operator unseal "
+            echo "  docker exec -it vault vault operator unseal "
+            echo "  docker exec -it vault vault operator unseal "
+            echo ""
+            echo "Then verify cluster:"
+            echo "  docker exec -it vault vault operator raft list-peers"
+            echo "======================================================================"
+            SCRIPT
+
+          ssh root@${{ env.SERVER2_IP }} "chmod +x /tmp/restore-followers.sh"
+
+      - name: Create Follower Restore Script on vault-3
+        run: |
+          echo "📝 Creating follower restore script..."
+          
+          ssh root@${{ env.SERVER3_IP }} 'cat > /tmp/restore-followers.sh' <<'SCRIPT'
+            #!/bin/bash
+            set -euo pipefail
+
+            echo "🚀 Starting vault-2 and vault-3..."
+
+            ssh root@${{ env.SERVER3_IP }} "cd /home/vault && SERVER_IP=${{ env.SERVER3_IP }} docker compose up -d vault" &
+            wait
+
+            echo "⏳ Waiting 10 seconds for nodes to start..."
+            sleep 10
+
+            echo ""
+            echo "======================================================================"
+            echo "⚠️  UNSEAL FOLLOWER NODE"
+            echo "======================================================================"
+            echo ""
+            echo "For vault-3:"
+            echo "  docker exec -it vault vault operator unseal "
+            echo "  docker exec -it vault vault operator unseal "
+            echo "  docker exec -it vault vault operator unseal "
+            echo ""
+            echo "Then verify cluster:"
+            echo "  docker exec -it vault vault operator raft list-peers"
+            echo "======================================================================"
+            SCRIPT
+
+          ssh root@${{ env.SERVER3_IP }} "chmod +x /tmp/restore-followers.sh"
+
