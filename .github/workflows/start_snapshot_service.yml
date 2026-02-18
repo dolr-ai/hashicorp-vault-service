@@ -50,7 +50,7 @@ jobs:
           vault write auth/token/roles/backup-worker-role \
               allowed_policies="backup-policy" \
               orphan=true \
-              period="12h" \
+              period="72h" \
               renewable=true
 
           # Creating a 12h periodic token that lasts forever if renewed
