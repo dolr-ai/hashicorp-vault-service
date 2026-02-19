@@ -76,7 +76,7 @@ jobs:
             echo "Creating dev policy..."
             vault policy write dev - <<'EOF'
           path "secret/*" {
-            capabilities = ["create", "read", "update", "list"]
+            capabilities = ["create", "update", "list"]
           }
 
           path "sys/policies/acl/*" {
