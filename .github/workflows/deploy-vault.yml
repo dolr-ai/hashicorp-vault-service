@@ -1,6 +1,6 @@
 name: Deploy Vault Cluster
 
-# vault cluster is already deployed, do not run it untill specified
+# Caution: vault cluster is already deployed, do not run it. If anyone done it by mistake, ask admin to manually unseal vaults on each machine. 
 on:
   workflow_dispatch:
 
@@ -60,8 +60,6 @@ jobs:
         env:
           SERVER_IP: ${{ matrix.server.server_ip }}
         run: |
-          # Remove old vault data, testing reinitiation of vault cluster
-          ssh root@${{ matrix.server.server_ip }} "rm -rf /home/vault/{config,data,logs}"
 
           # Create deployment directory if not exists
           ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
@@ -112,7 +110,7 @@ jobs:
           ssh root@${{ matrix.server.server_ip }} "
             echo "🚀 Starting Vault"
             cd /home/vault
-            docker compose down -v || true
+            docker compose down || true
             SERVER_IP=${{ matrix.server.server_ip }} docker compose up -d
 
             echo "✅ Vault container started on ${{ matrix.server.node_id }}"

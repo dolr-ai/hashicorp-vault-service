@@ -6,7 +6,7 @@
 
 - login into the vault with root token.
 ```bash
-docker exec -it vault vault login <ROOT_TOKEN>
+docker exec -it vault vault login
 ```
 
 Example: Store application database credentials
@@ -156,5 +156,26 @@ docker cp vault-service-role.json vault:/tmp/vault-service-role.json
 docker exec -it vault vault write auth/jwt/role/vault-service-role @/tmp/vault-service-role.json
 
 //verify role
-docker exec -it vault vault read auth/jwt/role/vault-service-role-role
+docker exec -it vault vault read auth/jwt/role/vault-service-role
 ```
+
+
+
+# Restore Vault After Disaster
+
+### Run below mentioned deployment file
+- run "restore_from_snapshot.yml", once it is complete manually ssh into all three nodes.
+
+### process to complete on nodes as directed below:
+Vault-1:
+- locat script "/tmp/restore-vault.sh" and run this script. It will run vault container and show manually steps to perform on that server.
+- run listed commands one by one as printed by script above.
+
+Vault-2:
+- locate script "/tmp/restore-followers.sh" and run this script. It will run vault container and show manually steps to perform on that server.
+- run listed commands one by one as printed by script above.
+
+Vault-3:
+- locate script "/tmp/restore-followers.sh" and run this script. It will run vault container and show manually steps to perform on that server.
+- run listed commands one by one as printed by script above.
+

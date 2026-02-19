@@ -116,7 +116,7 @@ jobs:
             
             vault write auth/oidc/role/$ROLE_NAME - <<EOF
           {
-            "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
+            "bound_audiences": ["${{ secrets.OAUTH_CLIENT_ID }}"],
             "allowed_redirect_uris": [
               "https://vault.yral.com/ui/vault/auth/oidc/oidc/callback",
               "https://vault.yral.com/oidc/callback"
@@ -135,7 +135,7 @@ jobs:
             
             vault write auth/oidc/role/$ROLE_NAME - <<EOF
           {
-            "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
+            "bound_audiences": ["${{ secrets.OAUTH_CLIENT_ID }}"],
             "allowed_redirect_uris": [
               "https://vault.yral.com/ui/vault/auth/oidc/oidc/callback",
               "https://vault.yral.com/oidc/callback"
@@ -190,7 +190,7 @@ jobs:
             
             vault write auth/oidc/role/$ROLE_NAME - <<EOF
           {
-            "bound_audiences": ["${{ secrets.TEST_OAUTH_CLIENT_ID }}"],
+            "bound_audiences": ["${{ secrets.OAUTH_CLIENT_ID }}"],
             "allowed_redirect_uris": [
               "https://vault.yral.com/ui/vault/auth/oidc/oidc/callback",
               "https://vault.yral.com/oidc/callback"
