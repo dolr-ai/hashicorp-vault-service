@@ -6,7 +6,7 @@
 
 - login into the vault with root token.
 ```bash
-docker exec -it vault vault login <ROOT_TOKEN>
+docker exec -it vault vault login
 ```
 
 Example: Store application database credentials
