@@ -2,9 +2,6 @@ name: Deploy Test Application
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 # Required: Add permissions for OIDC token
 permissions:
@@ -27,8 +24,8 @@ jobs:
           # Optional: customize the audience
           jwtGithubAudience: "https://github.com/dolr-ai"
           secrets: |
-            secret/data/test-app/config test_pass | DB_PASSWORD ;
-            secret/data/test-app/config test_user | DB_USERNAME ;
+            secret/data/test-app/TEST_PASS value | DB_PASSWORD ;
+            secret/data/test-app/TEST_USER value | DB_USERNAME ;
       
       - name: Use secrets in deployment
         run: |
