@@ -42,9 +42,9 @@ permissions:
           jwtGithubAudience: "https://github.com/dolr-ai"
           secrets: |
             # To read repo based secrets
-            secret/data/<REPO_NAME>/prod db_password | DB_PASSWORD ;
-            secret/data/<REPO_NAME>/prod db_user | DB_USERNAME ;
+            secret/data/<REPO_NAME>/SECRET_NAME_1 value | ENV_VAR_1 ;
+            secret/data/<REPO_NAME>/SECRET_NAME_2 value | ENV_VAR_2 ;
 
             # To read shared secrets
-            secret/data/shared-secret-name value | SHARED_SECRET ;
+            secret/data/SHARED_SECRET_NAME_1 value | ENV_VAR_3 ;
 ```
