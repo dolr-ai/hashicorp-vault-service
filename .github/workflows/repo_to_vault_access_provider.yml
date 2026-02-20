@@ -50,7 +50,7 @@ jobs:
           # 1. Create the Policy
           echo "Creating policy: $POLICY_NAME"
           vault policy write "$POLICY_NAME" - <<EOF
-          path "secret/data/$REPO/*" {
+          path "secret/data/$REPO*" {
             capabilities = ["read", "list"]
           }
           EOF
