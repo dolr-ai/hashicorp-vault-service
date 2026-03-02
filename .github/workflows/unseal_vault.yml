@@ -70,6 +70,9 @@ jobs:
           
       - name: Unseal Vault
         run: |
+          # Install jq for JSON parsing
+          ssh root@${{ steps.get-ip.outputs.ip }} "sudo apt-get install -y jq"
+          
           ssh root@${{ steps.get-ip.outputs.ip }} << 'EOF'
 
             echo "Target Node: ${{ matrix.node_name }} (${{ steps.get-ip.outputs.ip }})"
