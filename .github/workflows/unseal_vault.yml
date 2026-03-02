@@ -1,0 +1,94 @@
+name: Unseal Vault
+on:
+  workflow_dispatch: # Allows you to run this manually from the Actions tab
+    inputs:
+        vault_node:
+          description: 'The Vault node to unseal'
+          required: true
+          type: choice
+          options:
+            - vault-1
+            - vault-2
+            - vault-3
+            - all-nodes
+
+jobs:
+  generate-matrix:
+    name: Generate Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      nodes: ${{ steps.set-matrix.outputs.nodes }}
+    steps:
+      - id: set-matrix
+        run: |
+          NODE_INPUT="${{ github.event.inputs.vault_node }}"
+          
+          # Define all possible nodes
+          ALL_NODES='["vault-1", "vault-2", "vault-3"]'
+          
+          if [[ "$NODE_INPUT" == "all" ]]; then
+            echo "nodes=$ALL_NODES" >> $GITHUB_OUTPUT
+          else
+            echo "nodes=[\"$NODE_INPUT\"]" >> $GITHUB_OUTPUT
+          fi
+
+  unseal:
+    runs-on: ubuntu-latest
+    needs: generate-matrix
+    strategy:
+      max-parallel: 1 # This ensures they run "one after one"
+      matrix:
+        node_name: ${{ fromJson(needs.generate-matrix.outputs.nodes) }}
+
+    steps:
+      - name: Get IP for Current Node
+        id: get-ip
+        run: |
+          if [[ "${{ matrix.node_name }}" == "vault-1" ]]; then
+            echo "ip=${{ secrets.SERVER1_IP }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.node_name }}" == "vault-2" ]]; then
+            echo "ip=${{ secrets.SERVER2_IP }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.node_name }}" == "vault-3" ]]; then
+            echo "ip=${{ secrets.SERVER3_IP }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ steps.get-ip.outputs.ip }} >> ~/.ssh/known_hosts
+
+      - name: Check server connectivity
+        run: |
+          ssh -o ConnectTimeout=10 root@${{ steps.get-ip.outputs.ip }} "echo 'Server connection successful'"
+          
+      - name: Unseal Vault
+        run: |
+          ssh root@${{ steps.get-ip.outputs.ip }} << 'EOF'
+
+            echo "Target Node: ${{ matrix.node_name }} (${{ steps.get-ip.outputs.ip }})"
+            echo "Checking Vault Status inside Docker..."
+            STATUS=$(docker exec vault vault status -format=json || true)
+            
+            SEALED=$(echo $STATUS | jq -r '.sealed')
+
+            if [ "$SEALED" = "true" ]; then
+              echo "Vault is sealed. Starting unseal process..."
+              docker exec vault vault operator unseal ${{ secrets.VAULT_UNSEAL_SECRET_1 }}
+              docker exec vault vault operator unseal ${{ secrets.VAULT_UNSEAL_SECRET_2 }}
+              docker exec vault vault operator unseal ${{ secrets.VAULT_UNSEAL_SECRET_3 }}
+              
+              # Verification post-unseal
+              NEW_STATUS=$(docker exec vault vault status -format=json || true)
+              IS_SEALED=$(echo $NEW_STATUS | jq -r '.sealed')
+              echo "Final sealed status for ${{ matrix.node_name }}: $IS_SEALED"
+            else
+              echo "Vault on ${{ matrix.node_name }} is already unsealed."
+            fi
+          EOF
