@@ -48,3 +48,6 @@ permissions:
             # To read shared secrets
             secret/data/SHARED_SECRET_NAME_1 value | ENV_VAR_3 ;
 ```
+
+## 👨‍💻 Video guide
+[visit here](https://drive.google.com/file/d/1Wpty4_ZNjBzF6WA_aBt6uQ1VEFzZwfT9/view)
