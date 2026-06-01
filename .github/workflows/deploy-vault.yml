@@ -40,7 +40,7 @@ jobs:
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.VAULT_MACHINE_SSH_KEY }}
 
       - name: Add server to known hosts
         run: |
@@ -48,13 +48,13 @@ jobs:
 
       - name: Check server connectivity
         run: |
-          ssh -o ConnectTimeout=10 root@${{ matrix.server.server_ip }} "echo 'Server connection successful'"
+          ssh -o ConnectTimeout=10 vault-manager@${{ matrix.server.server_ip }} "echo 'Server connection successful'"
 
       - name: Sync deployment files to server
         run: |
           rsync -avz --delete \
             ./deploy/ \
-            root@${{matrix.server.server_ip}}:/home/vault/deploy/
+            vault-manager@${{matrix.server.server_ip}}:/home/vault/deploy/
 
       - name: Deploy to ${{ matrix.server.server_ip }} with docker compose
         env:
@@ -62,18 +62,18 @@ jobs:
         run: |
 
           # Create deployment directory if not exists
-          ssh root@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
+          ssh vault-manager@${{ matrix.server.server_ip }} "mkdir -p /home/vault/{config,data,logs}"
           
-          ssh root@${{ matrix.server.server_ip }} "chown -R 100:100 /home/vault/{config,data,logs}"
-          ssh root@${{ matrix.server.server_ip }} "chown -R root:root /home/tls"
-          ssh root@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*key.pem"
-          ssh root@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*cert.pem"
+          ssh vault-manager@${{ matrix.server.server_ip }} "chown -R 100:100 /home/vault/{config,data,logs}"
+          ssh vault-manager@${{ matrix.server.server_ip }} "chown -R root:root /home/tls"
+          ssh vault-manager@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*key.pem"
+          ssh vault-manager@${{ matrix.server.server_ip }} "chmod 644 /home/tls/*cert.pem"
 
           # Copy docker-compose.yml to base directory
-          ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/docker-compose.yml /home/vault/docker-compose.yml"
-          ssh root@${{ matrix.server.server_ip }} "cp /home/vault/deploy/Caddyfile /home/vault/"
+          ssh vault-manager@${{ matrix.server.server_ip }} "cp /home/vault/deploy/docker-compose.yml /home/vault/docker-compose.yml"
+          ssh vault-manager@${{ matrix.server.server_ip }} "cp /home/vault/deploy/Caddyfile /home/vault/"
           
-          ssh root@${{ matrix.server.server_ip }} "
+          ssh vault-manager@${{ matrix.server.server_ip }} "
             cat > /home/vault/config/vault.hcl <<EOF
 
             storage \"raft\" {
@@ -107,7 +107,7 @@ jobs:
             cluster_addr = \"https://${{ matrix.server.server_ip }}:8201\"
             disable_mlock = true
           "
-          ssh root@${{ matrix.server.server_ip }} "
+          ssh vault-manager@${{ matrix.server.server_ip }} "
             echo "🚀 Starting Vault"
             cd /home/vault
             docker compose down || true
@@ -115,7 +115,7 @@ jobs:
 
             echo "✅ Vault container started on ${{ matrix.server.node_id }}"
           "
-          ssh root@${{ matrix.server.server_ip }} "
+          ssh vault-manager@${{ matrix.server.server_ip }} "
             cd /home/vault
             echo '=== Container Status ==='
             docker compose ps
