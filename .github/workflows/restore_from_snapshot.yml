@@ -89,7 +89,7 @@ jobs:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.HETZNER_BARE_METAL_GITHUB_ACTIONS_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.VAULT_MACHINE_SSH_KEY }}
 
       - name: Add servers to known hosts
         run: |
@@ -111,9 +111,9 @@ jobs:
         run: |
           echo "🛑 Stopping Vault cluster..."
           
-          ssh root@${{ env.SERVER1_IP }} "cd /home/vault && docker compose stop vault" &
-          ssh root@${{ env.SERVER2_IP }} "cd /home/vault && docker compose stop vault" &
-          ssh root@${{ env.SERVER3_IP }} "cd /home/vault && docker compose stop vault" &
+          ssh vault-manager@${{ env.SERVER1_IP }} "cd /home/vault && docker compose stop vault" &
+          ssh vault-manager@${{ env.SERVER2_IP }} "cd /home/vault && docker compose stop vault" &
+          ssh vault-manager@${{ env.SERVER3_IP }} "cd /home/vault && docker compose stop vault" &
           wait
           
           echo "✅ All Vault nodes stopped"
@@ -123,9 +123,9 @@ jobs:
           echo "💾 Creating safety backups..."
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           
-          ssh root@${{ env.SERVER1_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
-          ssh root@${{ env.SERVER2_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
-          ssh root@${{ env.SERVER3_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
+          ssh vault-manager@${{ env.SERVER1_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
+          ssh vault-manager@${{ env.SERVER2_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
+          ssh vault-manager@${{ env.SERVER3_IP }} "tar -czf /root/vault-data-backup-${TIMESTAMP}.tar.gz /home/vault/data 2>/dev/null || true" &
           wait
           
           echo "✅ Backups created at /root/vault-data-backup-${TIMESTAMP}.tar.gz on all nodes"
@@ -134,9 +134,9 @@ jobs:
         run: |
           echo "🧹 Clearing old Raft data..."
           
-          ssh root@${{ env.SERVER1_IP }} "rm -rf /home/vault/data/*" &
-          ssh root@${{ env.SERVER2_IP }} "rm -rf /home/vault/data/*" &
-          ssh root@${{ env.SERVER3_IP }} "rm -rf /home/vault/data/*" &
+          ssh vault-manager@${{ env.SERVER1_IP }} "rm -rf /home/vault/data/*" &
+          ssh vault-manager@${{ env.SERVER2_IP }} "rm -rf /home/vault/data/*" &
+          ssh vault-manager@${{ env.SERVER3_IP }} "rm -rf /home/vault/data/*" &
           wait
           
           echo "✅ Old data cleared"
@@ -157,9 +157,9 @@ jobs:
           echo "✅ Snapshot downloaded"
           
           echo "📤 Copying snapshot to all nodes..."
-          scp /tmp/vault-restore.snap root@${{ env.SERVER1_IP }}:/tmp/ &
-          scp /tmp/vault-restore.snap root@${{ env.SERVER2_IP }}:/tmp/ &
-          scp /tmp/vault-restore.snap root@${{ env.SERVER3_IP }}:/tmp/ &
+          scp /tmp/vault-restore.snap vault-manager@${{ env.SERVER1_IP }}:/tmp/ &
+          scp /tmp/vault-restore.snap vault-manager@${{ env.SERVER2_IP }}:/tmp/ &
+          scp /tmp/vault-restore.snap vault-manager@${{ env.SERVER3_IP }}:/tmp/ &
           wait
           
           echo "✅ Snapshot distributed to all nodes"
@@ -168,7 +168,7 @@ jobs:
         run: |
           echo "📝 Creating restore script on vault-1..."
           
-          ssh root@${{ env.SERVER1_IP }} 'cat > /tmp/restore-vault.sh' <<'SCRIPT'
+          ssh vault-manager@${{ env.SERVER1_IP }} 'cat > /tmp/restore-vault.sh' <<'SCRIPT'
             #!/bin/bash
             set -euo pipefail
 
@@ -215,13 +215,13 @@ jobs:
             echo "======================================================================"
           SCRIPT
 
-          ssh root@${{ env.SERVER1_IP }} "chmod +x /tmp/restore-vault.sh"
+          ssh vault-manager@${{ env.SERVER1_IP }} "chmod +x /tmp/restore-vault.sh"
 
       - name: Create Follower Restore Script on vault-2
         run: |
           echo "📝 Creating follower restore script..."
           
-          ssh root@${{ env.SERVER2_IP }} 'cat > /tmp/restore-followers.sh' <<'SCRIPT'
+          ssh vault-manager@${{ env.SERVER2_IP }} 'cat > /tmp/restore-followers.sh' <<'SCRIPT'
             #!/bin/bash
             set -euo pipefail
 
@@ -246,13 +246,13 @@ jobs:
             echo "======================================================================"
           SCRIPT
 
-          ssh root@${{ env.SERVER2_IP }} "chmod +x /tmp/restore-followers.sh"
+          ssh vault-manager@${{ env.SERVER2_IP }} "chmod +x /tmp/restore-followers.sh"
 
       - name: Create Follower Restore Script on vault-3
         run: |
           echo "📝 Creating follower restore script..."
           
-          ssh root@${{ env.SERVER3_IP }} 'cat > /tmp/restore-followers.sh' <<'SCRIPT'
+          ssh vault-manager@${{ env.SERVER3_IP }} 'cat > /tmp/restore-followers.sh' <<'SCRIPT'
             #!/bin/bash
             set -euo pipefail
 
@@ -277,5 +277,5 @@ jobs:
             echo "======================================================================"
           SCRIPT
 
-          ssh root@${{ env.SERVER3_IP }} "chmod +x /tmp/restore-followers.sh"
+          ssh vault-manager@${{ env.SERVER3_IP }} "chmod +x /tmp/restore-followers.sh"
 
